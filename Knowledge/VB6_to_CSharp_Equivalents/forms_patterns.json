@@ -1,0 +1,172 @@
+{
+  "form_load_event": {
+    "pattern": "Private Sub Form_Load()\n    ' Initialization code here\n    Text1.Text = \"Hello\"\n    Command1.Caption = \"Click Me\"\nEnd Sub",
+    "csharp_equivalent": "public Form1()\n{\n    InitializeComponent();\n    // Initialization code here\n    textBox1.Text = \"Hello\";\n    button1.Text = \"Click Me\";\n}",
+    "description": "Form Load event initialization pattern",
+    "tags": ["form", "initialization", "event", "constructor"],
+    "complexity": "low",
+    "confidence": 1.0
+  },
+
+  "button_click_event": {
+    "pattern": "Private Sub Command1_Click()\n    MsgBox \"Button clicked!\"\n    Text1.Text = \"Updated\"\nEnd Sub",
+    "csharp_equivalent": "private void button1_Click(object sender, EventArgs e)\n{\n    MessageBox.Show(\"Button clicked!\");\n    textBox1.Text = \"Updated\";\n}",
+    "description": "Button click event handler pattern",
+    "tags": ["button", "click", "event", "messagebox"],
+    "complexity": "low",
+    "confidence": 1.0
+  },
+
+  "textbox_change_event": {
+    "pattern": "Private Sub Text1_Change()\n    If Len(Text1.Text) > 10 Then\n        Label1.Caption = \"Too long!\"\n    End If\nEnd Sub",
+    "csharp_equivalent": "private void textBox1_TextChanged(object sender, EventArgs e)\n{\n    if (textBox1.Text.Length > 10)\n    {\n        label1.Text = \"Too long!\";\n    }\n}",
+    "description": "TextBox change event handler pattern",
+    "tags": ["textbox", "change", "event", "validation"],
+    "complexity": "low",
+    "confidence": 1.0
+  },
+
+  "form_closing_event": {
+    "pattern": "Private Sub Form_Unload(Cancel As Integer)\n    Dim response As Integer\n    response = MsgBox(\"Are you sure?\", vbYesNo)\n    If response = vbNo Then\n        Cancel = True\n    End If\nEnd Sub",
+    "csharp_equivalent": "private void Form1_FormClosing(object sender, FormClosingEventArgs e)\n{\n    DialogResult response = MessageBox.Show(\"Are you sure?\", \"Confirm\", MessageBoxButtons.YesNo);\n    if (response == DialogResult.No)\n    {\n        e.Cancel = true;\n    }\n}",
+    "description": "Form closing/unload event with confirmation",
+    "tags": ["form", "closing", "unload", "confirmation", "cancel"],
+    "complexity": "medium",
+    "confidence": 1.0
+  },
+
+  "control_property_access": {
+    "pattern": "Text1.Text = \"New Value\"\nText1.Enabled = False\nText1.Visible = True\nCommand1.Caption = \"OK\"",
+    "csharp_equivalent": "textBox1.Text = \"New Value\";\ntextBox1.Enabled = false;\ntextBox1.Visible = true;\nbutton1.Text = \"OK\";",
+    "description": "Common control property assignments",
+    "tags": ["controls", "properties", "text", "enabled", "visible"],
+    "complexity": "low",
+    "confidence": 1.0
+  },
+
+  "dynamic_control_creation": {
+    "pattern": "Dim newButton As CommandButton\nSet newButton = Controls.Add(\"VB.CommandButton\", \"dynButton\")\nnewButton.Caption = \"Dynamic\"\nnewButton.Visible = True",
+    "csharp_equivalent": "Button newButton = new Button();\nnewButton.Name = \"dynButton\";\nnewButton.Text = \"Dynamic\";\nnewButton.Visible = true;\nthis.Controls.Add(newButton);",
+    "description": "Dynamic control creation at runtime",
+    "tags": ["dynamic", "controls", "runtime", "creation"],
+    "complexity": "high",
+    "confidence": 0.9
+  },
+
+  "control_arrays": {
+    "pattern": "Private Sub Text1_Change(Index As Integer)\n    Select Case Index\n        Case 0\n            Label1.Caption = \"First\"\n        Case 1\n            Label1.Caption = \"Second\"\n    End Select\nEnd Sub",
+    "csharp_equivalent": "private void textBox_TextChanged(object sender, EventArgs e)\n{\n    TextBox textBox = sender as TextBox;\n    int index = int.Parse(textBox.Tag.ToString());\n    switch (index)\n    {\n        case 0:\n            label1.Text = \"First\";\n            break;\n        case 1:\n            label1.Text = \"Second\";\n            break;\n    }\n}",
+    "description": "VB6 control arrays converted to event handler with Tag property",
+    "tags": ["control-arrays", "index", "tag", "switch"],
+    "complexity": "high",
+    "confidence": 0.8
+  },
+
+  "listbox_operations": {
+    "pattern": "List1.AddItem \"Item 1\"\nList1.AddItem \"Item 2\"\nList1.RemoveItem 0\nselectedItem = List1.List(List1.ListIndex)",
+    "csharp_equivalent": "listBox1.Items.Add(\"Item 1\");\nlistBox1.Items.Add(\"Item 2\");\nlistBox1.Items.RemoveAt(0);\nstring selectedItem = listBox1.SelectedItem?.ToString();",
+    "description": "Common ListBox operations - add, remove, get selected",
+    "tags": ["listbox", "items", "add", "remove", "selected"],
+    "complexity": "medium",
+    "confidence": 1.0
+  },
+
+  "combobox_operations": {
+    "pattern": "Combo1.AddItem \"Option 1\"\nCombo1.AddItem \"Option 2\"\nCombo1.ListIndex = 0\nselectedText = Combo1.Text",
+    "csharp_equivalent": "comboBox1.Items.Add(\"Option 1\");\ncomboBox1.Items.Add(\"Option 2\");\ncomboBox1.SelectedIndex = 0;\nstring selectedText = comboBox1.Text;",
+    "description": "ComboBox operations - populate and select items",
+    "tags": ["combobox", "items", "selectedindex", "text"],
+    "complexity": "medium",
+    "confidence": 1.0
+  },
+
+  "timer_control": {
+    "pattern": "Private Sub Timer1_Timer()\n    Label1.Caption = Format(Now, \"hh:mm:ss\")\nEnd Sub\n\n' Enable timer\nTimer1.Interval = 1000\nTimer1.Enabled = True",
+    "csharp_equivalent": "private void timer1_Tick(object sender, EventArgs e)\n{\n    label1.Text = DateTime.Now.ToString(\"HH:mm:ss\");\n}\n\n// Enable timer\ntimer1.Interval = 1000;\ntimer1.Enabled = true;",
+    "description": "Timer control for periodic updates",
+    "tags": ["timer", "tick", "interval", "datetime"],
+    "complexity": "medium",
+    "confidence": 1.0
+  },
+
+  "menu_creation": {
+    "pattern": "' Menu created in Menu Editor\nPrivate Sub mnuFile_Click()\n    ' File menu clicked\nEnd Sub\n\nPrivate Sub mnuExit_Click()\n    Unload Me\nEnd Sub",
+    "csharp_equivalent": "// Menu created in designer\nprivate void fileToolStripMenuItem_Click(object sender, EventArgs e)\n{\n    // File menu clicked\n}\n\nprivate void exitToolStripMenuItem_Click(object sender, EventArgs e)\n{\n    this.Close();\n}",
+    "description": "Menu creation and event handling",
+    "tags": ["menu", "menustrip", "click", "close"],
+    "complexity": "medium",
+    "confidence": 1.0
+  },
+
+  "form_positioning": {
+    "pattern": "Me.Left = (Screen.Width - Me.Width) / 2\nMe.Top = (Screen.Height - Me.Height) / 2\nMe.WindowState = vbMaximized",
+    "csharp_equivalent": "this.StartPosition = FormStartPosition.CenterScreen;\n// or for manual positioning:\n// this.Left = (Screen.PrimaryScreen.Bounds.Width - this.Width) / 2;\n// this.Top = (Screen.PrimaryScreen.Bounds.Height - this.Height) / 2;\nthis.WindowState = FormWindowState.Maximized;",
+    "description": "Form positioning and window state management",
+    "tags": ["form", "position", "center", "maximize", "windowstate"],
+    "complexity": "medium",
+    "confidence": 1.0
+  },
+
+  "focus_management": {
+    "pattern": "Text1.SetFocus\nIf Text1.Focused Then\n    ' Do something\nEnd If\nSendKeys \"{TAB}\"",
+    "csharp_equivalent": "textBox1.Focus();\nif (textBox1.Focused)\n{\n    // Do something\n}\nSendKeys.Send(\"{TAB}\");",
+    "description": "Focus management and SendKeys functionality",
+    "tags": ["focus", "setfocus", "sendkeys", "tab"],
+    "complexity": "medium",
+    "confidence": 1.0
+  },
+
+  "drag_drop_operations": {
+    "pattern": "Private Sub Text1_DragDrop(Source As Control, X As Single, Y As Single)\n    Text1.Text = Source.Text\nEnd Sub\n\nPrivate Sub Text1_DragOver(Source As Control, X As Single, Y As Single, State As Integer)\n    If State = vbEnter Then\n        Text1.DragIcon = LoadPicture(\"drag.ico\")\n    End If\nEnd Sub",
+    "csharp_equivalent": "private void textBox1_DragDrop(object sender, DragEventArgs e)\n{\n    if (e.Data.GetDataPresent(DataFormats.Text))\n    {\n        textBox1.Text = e.Data.GetData(DataFormats.Text).ToString();\n    }\n}\n\nprivate void textBox1_DragOver(object sender, DragEventArgs e)\n{\n    if (e.Data.GetDataPresent(DataFormats.Text))\n    {\n        e.Effect = DragDropEffects.Copy;\n    }\n}",
+    "description": "Drag and drop operations between controls",
+    "tags": ["drag", "drop", "dragdrop", "dragover", "dataformats"],
+    "complexity": "high",
+    "confidence": 0.9
+  },
+
+  "picture_box_operations": {
+    "pattern": "Picture1.Picture = LoadPicture(\"image.bmp\")\nPicture1.Cls\nPicture1.Print \"Hello World\"\nSet Picture1.Picture = Nothing",
+    "csharp_equivalent": "pictureBox1.Image = Image.FromFile(\"image.bmp\");\n// For clearing:\npictureBox1.Image = null;\n// For text drawing (requires Graphics object):\nusing (Graphics g = pictureBox1.CreateGraphics())\n{\n    g.DrawString(\"Hello World\", this.Font, Brushes.Black, 0, 0);\n}",
+    "description": "PictureBox operations - loading images and drawing",
+    "tags": ["picturebox", "image", "loadpicture", "graphics", "drawing"],
+    "complexity": "high",
+    "confidence": 0.8
+  },
+
+  "modal_dialogs": {
+    "pattern": "Dim frm As New Form2\nfrm.Show vbModal\nUnload frm\nSet frm = Nothing",
+    "csharp_equivalent": "using (Form2 frm = new Form2())\n{\n    frm.ShowDialog();\n    // Form automatically disposed when using block ends\n}",
+    "description": "Modal dialog creation and cleanup",
+    "tags": ["modal", "dialog", "showdialog", "using", "dispose"],
+    "complexity": "medium",
+    "confidence": 1.0
+  },
+
+  "form_validation": {
+    "pattern": "Private Sub Text1_Validate(Cancel As Boolean)\n    If Not IsNumeric(Text1.Text) Then\n        MsgBox \"Please enter a number\"\n        Cancel = True\n    End If\nEnd Sub",
+    "csharp_equivalent": "private void textBox1_Validating(object sender, System.ComponentModel.CancelEventArgs e)\n{\n    if (!double.TryParse(textBox1.Text, out _))\n    {\n        MessageBox.Show(\"Please enter a number\");\n        e.Cancel = true;\n    }\n}",
+    "description": "Input validation using Validating event",
+    "tags": ["validation", "validating", "cancel", "numeric", "tryparse"],
+    "complexity": "medium",
+    "confidence": 1.0
+  },
+
+  "keyboard_events": {
+    "pattern": "Private Sub Form_KeyPress(KeyAscii As Integer)\n    If KeyAscii = vbKeyEscape Then\n        Unload Me\n    ElseIf KeyAscii = vbKeyReturn Then\n        Command1_Click\n    End If\nEnd Sub",
+    "csharp_equivalent": "private void Form1_KeyPress(object sender, KeyPressEventArgs e)\n{\n    if (e.KeyChar == (char)Keys.Escape)\n    {\n        this.Close();\n    }\n    else if (e.KeyChar == (char)Keys.Enter)\n    {\n        button1_Click(sender, e);\n    }\n}",
+    "description": "Form-level keyboard event handling",
+    "tags": ["keyboard", "keypress", "escape", "enter", "keys"],
+    "complexity": "medium",
+    "confidence": 1.0
+  },
+
+  "status_bar_operations": {
+    "pattern": "StatusBar1.Panels(1).Text = \"Ready\"\nStatusBar1.Panels(2).Text = Format(Now, \"hh:mm\")\nStatusBar1.SimpleText = \"Status message\"",
+    "csharp_equivalent": "statusStrip1.Items[0].Text = \"Ready\";\nstatusStrip1.Items[1].Text = DateTime.Now.ToString(\"HH:mm\");\n// For simple status:\ntoolStripStatusLabel1.Text = \"Status message\";",
+    "description": "StatusBar/StatusStrip operations and panel management",
+    "tags": ["statusbar", "statusstrip", "panels", "items", "text"],
+    "complexity": "medium",
+    "confidence": 1.0
+  }
+}
