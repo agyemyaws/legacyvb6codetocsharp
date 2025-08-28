@@ -1,0 +1,136 @@
+{
+  "excel_automation": {
+    "pattern": "Dim xlApp As Object\nDim xlWorkbook As Object\nDim xlWorksheet As Object\n\nSet xlApp = CreateObject(\"Excel.Application\")\nxlApp.Visible = True\nSet xlWorkbook = xlApp.Workbooks.Add\nSet xlWorksheet = xlWorkbook.Worksheets(1)\nxlWorksheet.Cells(1, 1).Value = \"Hello Excel\"\nxlWorkbook.SaveAs \"C:\\test.xlsx\"\nxlApp.Quit\nSet xlApp = Nothing",
+    "csharp_equivalent": "// Using Microsoft.Office.Interop.Excel NuGet package\nusing Excel = Microsoft.Office.Interop.Excel;\n\nExcel.Application xlApp = new Excel.Application();\nxlApp.Visible = true;\nExcel.Workbook xlWorkbook = xlApp.Workbooks.Add();\nExcel.Worksheet xlWorksheet = xlWorkbook.Worksheets[1];\nxlWorksheet.Cells[1, 1].Value = \"Hello Excel\";\nxlWorkbook.SaveAs(\"C:\\\\test.xlsx\");\nxlApp.Quit();\n\n// Release COM objects\nMarshal.ReleaseComObject(xlWorksheet);\nMarshal.ReleaseComObject(xlWorkbook);\nMarshal.ReleaseComObject(xlApp);",
+    "description": "Excel automation using COM Interop",
+    "tags": ["excel", "com", "interop", "automation", "createobject"],
+    "complexity": "high",
+    "confidence": 0.8
+  },
+
+  "word_automation": {
+    "pattern": "Dim wdApp As Object\nDim wdDoc As Object\n\nSet wdApp = CreateObject(\"Word.Application\")\nwdApp.Visible = True\nSet wdDoc = wdApp.Documents.Add\nwdDoc.Range.Text = \"Hello Word\"\nwdDoc.SaveAs \"C:\\test.docx\"\nwdApp.Quit\nSet wdApp = Nothing",
+    "csharp_equivalent": "// Using Microsoft.Office.Interop.Word NuGet package\nusing Word = Microsoft.Office.Interop.Word;\n\nWord.Application wdApp = new Word.Application();\nwdApp.Visible = true;\nWord.Document wdDoc = wdApp.Documents.Add();\nwdDoc.Range().Text = \"Hello Word\";\nwdDoc.SaveAs(\"C:\\\\test.docx\");\nwdApp.Quit();\n\n// Release COM objects\nMarshal.ReleaseComObject(wdDoc);\nMarshal.ReleaseComObject(wdApp);",
+    "description": "Word automation using COM Interop",
+    "tags": ["word", "com", "interop", "automation", "document"],
+    "complexity": "high",
+    "confidence": 0.8
+  },
+
+  "filesystem_object": {
+    "pattern": "Dim fso As Object\nSet fso = CreateObject(\"Scripting.FileSystemObject\")\n\nIf fso.FileExists(\"C:\\test.txt\") Then\n    Set file = fso.OpenTextFile(\"C:\\test.txt\", 1)\n    content = file.ReadAll\n    file.Close\nEnd If\n\nSet folder = fso.GetFolder(\"C:\\\")\nFor Each file In folder.Files\n    Debug.Print file.Name\nNext",
+    "csharp_equivalent": "// Use System.IO instead of FileSystemObject\nif (File.Exists(\"C:\\\\test.txt\"))\n{\n    string content = File.ReadAllText(\"C:\\\\test.txt\");\n}\n\n// Directory operations\nDirectoryInfo folder = new DirectoryInfo(\"C:\\\\\");\nforeach (FileInfo file in folder.GetFiles())\n{\n    Console.WriteLine(file.Name);\n}",
+    "description": "FileSystemObject replaced with System.IO",
+    "tags": ["filesystem", "file", "directory", "io", "readalltext"],
+    "complexity": "medium",
+    "confidence": 1.0
+  },
+
+  "wscript_shell": {
+    "pattern": "Dim shell As Object\nSet shell = CreateObject(\"WScript.Shell\")\n\n' Run external program\nshell.Run \"notepad.exe\", 1, True\n\n' Read registry\nregValue = shell.RegRead(\"HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\ProgramFilesDir\")\n\n' Environment variables\nenvValue = shell.ExpandEnvironmentStrings(\"%TEMP%\")",
+    "csharp_equivalent": "// Process operations\nProcess.Start(\"notepad.exe\");\n// Or with more control:\nProcessStartInfo psi = new ProcessStartInfo(\"notepad.exe\");\nProcess.Start(psi).WaitForExit();\n\n// Registry operations\nusing Microsoft.Win32;\nstring regValue = Registry.LocalMachine.OpenSubKey(@\"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\")?.GetValue(\"ProgramFilesDir\")?.ToString();\n\n// Environment variables\nstring envValue = Environment.GetEnvironmentVariable(\"TEMP\");",
+    "description": "WScript.Shell functionality replaced with .NET classes",
+    "tags": ["wscript", "shell", "process", "registry", "environment"],
+    "complexity": "medium",
+    "confidence": 0.9
+  },
+
+  "activex_control": {
+    "pattern": "' In VB6 Form designer, add ActiveX control\n' Then in code:\nPrivate Sub WebBrowser1_NavigateComplete2(ByVal pDisp As Object, URL As Variant)\n    Debug.Print \"Navigated to: \" & URL\nEnd Sub\n\nWebBrowser1.Navigate \"http://www.example.com\"",
+    "csharp_equivalent": "// Using WebBrowser control in Windows Forms\nprivate void webBrowser1_DocumentCompleted(object sender, WebBrowserDocumentCompletedEventArgs e)\n{\n    Console.WriteLine(\"Navigated to: \" + e.Url.ToString());\n}\n\n// Navigate\nwebBrowser1.Navigate(\"http://www.example.com\");\n\n// Or use modern WebView2 control:\n// webView21.NavigationCompleted += WebView21_NavigationCompleted;\n// await webView21.EnsureCoreWebView2Async();\n// webView21.CoreWebView2.Navigate(\"http://www.example.com\");",
+    "description": "ActiveX controls replaced with .NET equivalents",
+    "tags": ["activex", "webbrowser", "webview2", "control", "navigate"],
+    "complexity": "high",
+    "confidence": 0.8
+  },
+
+  "com_dll_late_binding": {
+    "pattern": "Dim obj As Object\nSet obj = CreateObject(\"MyCustom.Application\")\nresult = obj.DoSomething(\"parameter\")\nSet obj = Nothing",
+    "csharp_equivalent": "// Late binding using reflection and COM\nType comType = Type.GetTypeFromProgID(\"MyCustom.Application\");\nobject obj = Activator.CreateInstance(comType);\nobject result = comType.InvokeMember(\"DoSomething\", \n    BindingFlags.InvokeMethod, null, obj, new object[] { \"parameter\" });\n\n// Release COM object\nif (obj != null && Marshal.IsComObject(obj))\n{\n    Marshal.ReleaseComObject(obj);\n}",
+    "description": "Late binding COM object creation and method invocation",
+    "tags": ["com", "latebinding", "reflection", "activator", "invokemember"],
+    "complexity": "high",
+    "confidence": 0.7
+  },
+
+  "com_dll_early_binding": {
+    "pattern": "' Reference added to COM library in VB6\nDim obj As MyCustomLibrary.Application\nSet obj = New MyCustomLibrary.Application\nresult = obj.DoSomething(\"parameter\")\nSet obj = Nothing",
+    "csharp_equivalent": "// Add COM reference or create wrapper\n// If COM library has .NET wrapper:\nMyCustomLibrary.Application obj = new MyCustomLibrary.Application();\nvar result = obj.DoSomething(\"parameter\");\n\n// Release if COM object\nif (Marshal.IsComObject(obj))\n{\n    Marshal.ReleaseComObject(obj);\n}\n\n// Or use 'using' if implements IDisposable\n// using (var obj = new MyCustomLibrary.Application())\n// {\n//     var result = obj.DoSomething(\"parameter\");\n// }",
+    "description": "Early binding COM objects with type libraries",
+    "tags": ["com", "earlybinding", "reference", "wrapper", "typelibrary"],
+    "complexity": "medium",
+    "confidence": 0.8
+  },
+
+  "ado_connection": {
+    "pattern": "Dim conn As ADODB.Connection\nSet conn = CreateObject(\"ADODB.Connection\")\nconn.ConnectionString = \"Provider=SQLOLEDB;Server=localhost;Database=TestDB;Trusted_Connection=yes\"\nconn.Open",
+    "csharp_equivalent": "// Modern approach with Entity Framework\nusing (var context = new ApplicationDbContext())\n{\n    // Connection managed automatically\n}\n\n// Or raw ADO.NET\nstring connectionString = \"Server=localhost;Database=TestDB;Integrated Security=true;\";\nusing (var conn = new SqlConnection(connectionString))\n{\n    conn.Open();\n    // Use connection\n}",
+    "description": "ADODB Connection replaced with modern data access",
+    "tags": ["adodb", "connection", "sqlconnection", "entityframework", "ado.net"],
+    "complexity": "high",
+    "confidence": 0.9
+  },
+
+  "scripting_dictionary": {
+    "pattern": "Dim dict As Object\nSet dict = CreateObject(\"Scripting.Dictionary\")\ndict.Add \"key1\", \"value1\"\ndict.Add \"key2\", \"value2\"\n\nIf dict.Exists(\"key1\") Then\n    value = dict.Item(\"key1\")\nEnd If\n\nFor Each key In dict.Keys\n    Debug.Print key & \" = \" & dict.Item(key)\nNext",
+    "csharp_equivalent": "Dictionary<string, string> dict = new Dictionary<string, string>();\ndict.Add(\"key1\", \"value1\");\ndict.Add(\"key2\", \"value2\");\n\nif (dict.ContainsKey(\"key1\"))\n{\n    string value = dict[\"key1\"];\n}\n\nforeach (var kvp in dict)\n{\n    Console.WriteLine($\"{kvp.Key} = {kvp.Value}\");\n}",
+    "description": "Scripting.Dictionary replaced with generic Dictionary",
+    "tags": ["dictionary", "scripting", "generic", "containskey", "foreach"],
+    "complexity": "medium",
+    "confidence": 1.0
+  },
+
+  "xml_dom": {
+    "pattern": "Dim xmlDoc As Object\nSet xmlDoc = CreateObject(\"MSXML2.DOMDocument\")\nxmlDoc.LoadXML \"<root><item>value</item></root>\"\n\nSet node = xmlDoc.SelectSingleNode(\"//item\")\nIf Not node Is Nothing Then\n    Debug.Print node.Text\nEnd If",
+    "csharp_equivalent": "XmlDocument xmlDoc = new XmlDocument();\nxmlDoc.LoadXml(\"<root><item>value</item></root>\");\n\nXmlNode node = xmlDoc.SelectSingleNode(\"//item\");\nif (node != null)\n{\n    Console.WriteLine(node.InnerText);\n}\n\n// Or use LINQ to XML (more modern):\nXDocument doc = XDocument.Parse(\"<root><item>value</item></root>\");\nstring value = doc.Descendants(\"item\").FirstOrDefault()?.Value;",
+    "description": "MSXML DOM replaced with System.Xml or LINQ to XML",
+    "tags": ["xml", "dom", "msxml", "xmldocument", "linq", "xdocument"],
+    "complexity": "medium",
+    "confidence": 0.9
+  },
+
+  "http_request": {
+    "pattern": "Dim http As Object\nSet http = CreateObject(\"MSXML2.XMLHTTP\")\nhttp.Open \"GET\", \"http://api.example.com/data\", False\nhttp.Send\n\nIf http.Status = 200 Then\n    response = http.ResponseText\n    Debug.Print response\nEnd If",
+    "csharp_equivalent": "// Using HttpClient (modern approach)\nusing (HttpClient client = new HttpClient())\n{\n    HttpResponseMessage response = await client.GetAsync(\"http://api.example.com/data\");\n    if (response.IsSuccessStatusCode)\n    {\n        string content = await response.Content.ReadAsStringAsync();\n        Console.WriteLine(content);\n    }\n}\n\n// Or synchronous version:\nusing (WebClient client = new WebClient())\n{\n    string response = client.DownloadString(\"http://api.example.com/data\");\n    Console.WriteLine(response);\n}",
+    "description": "XMLHTTP requests replaced with HttpClient or WebClient",
+    "tags": ["http", "xmlhttp", "httpclient", "webclient", "async", "rest"],
+    "complexity": "medium",
+    "confidence": 0.9
+  },
+
+  "com_error_handling": {
+    "pattern": "On Error Resume Next\nSet obj = CreateObject(\"NonExistent.Application\")\nIf Err.Number <> 0 Then\n    MsgBox \"COM Error: \" & Err.Description\n    Err.Clear\nEnd If\nOn Error GoTo 0",
+    "csharp_equivalent": "try\n{\n    Type comType = Type.GetTypeFromProgID(\"NonExistent.Application\");\n    if (comType == null)\n    {\n        throw new COMException(\"COM class not registered\");\n    }\n    object obj = Activator.CreateInstance(comType);\n}\ncatch (COMException ex)\n{\n    MessageBox.Show($\"COM Error: {ex.Message}\");\n}\ncatch (Exception ex)\n{\n    MessageBox.Show($\"Error: {ex.Message}\");\n}",
+    "description": "COM error handling with try-catch and COMException",
+    "tags": ["com", "error", "exception", "comexception", "try-catch"],
+    "complexity": "medium",
+    "confidence": 0.9
+  },
+
+  "com_event_handling": {
+    "pattern": "' In VB6 class module\nPrivate WithEvents xlApp As Excel.Application\n\nPrivate Sub xlApp_WorkbookOpen(ByVal Wb As Excel.Workbook)\n    Debug.Print \"Workbook opened: \" & Wb.Name\nEnd Sub\n\n' In main code\nSet xlApp = New Excel.Application",
+    "csharp_equivalent": "// Using COM events in C#\nusing Excel = Microsoft.Office.Interop.Excel;\n\nExcel.Application xlApp = new Excel.Application();\nxlApp.WorkbookOpen += XlApp_WorkbookOpen;\n\nprivate void XlApp_WorkbookOpen(Excel.Workbook Wb)\n{\n    Console.WriteLine($\"Workbook opened: {Wb.Name}\");\n}\n\n// Remember to unsubscribe and release\n// xlApp.WorkbookOpen -= XlApp_WorkbookOpen;\n// Marshal.ReleaseComObject(xlApp);",
+    "description": "COM event handling with delegates",
+    "tags": ["com", "events", "withevents", "delegates", "subscribe"],
+    "complexity": "high",
+    "confidence": 0.8
+  },
+
+  "com_cleanup": {
+    "pattern": "Set obj = Nothing\nSet xlApp = Nothing\nSet wdApp = Nothing\n\n' VB6 automatically handled COM cleanup",
+    "csharp_equivalent": "// Explicit COM object cleanup\nif (obj != null && Marshal.IsComObject(obj))\n{\n    Marshal.ReleaseComObject(obj);\n    obj = null;\n}\n\n// For multiple objects\nMarshal.ReleaseComObject(xlWorksheet);\nMarshal.ReleaseComObject(xlWorkbook);\nMarshal.ReleaseComObject(xlApp);\n\n// Force garbage collection (use sparingly)\n// GC.Collect();\n// GC.WaitForPendingFinalizers();",
+    "description": "Proper COM object cleanup and memory management",
+    "tags": ["com", "cleanup", "marshal", "releasecomobject", "garbage-collection"],
+    "complexity": "medium",
+    "confidence": 1.0
+  },
+
+  "registry_operations": {
+    "pattern": "Dim shell As Object\nSet shell = CreateObject(\"WScript.Shell\")\n\n' Read registry value\nvalue = shell.RegRead(\"HKEY_CURRENT_USER\\Software\\MyApp\\Setting\")\n\n' Write registry value\nshell.RegWrite \"HKEY_CURRENT_USER\\Software\\MyApp\\Setting\", \"NewValue\", \"REG_SZ\"\n\n' Delete registry key\nshell.RegDelete \"HKEY_CURRENT_USER\\Software\\MyApp\\OldSetting\"",
+    "csharp_equivalent": "using Microsoft.Win32;\n\n// Read registry value\nusing (RegistryKey key = Registry.CurrentUser.OpenSubKey(@\"Software\\MyApp\"))\n{\n    if (key != null)\n    {\n        string value = key.GetValue(\"Setting\")?.ToString();\n    }\n}\n\n// Write registry value\nusing (RegistryKey key = Registry.CurrentUser.CreateSubKey(@\"Software\\MyApp\"))\n{\n    key.SetValue(\"Setting\", \"NewValue\", RegistryValueKind.String);\n}\n\n// Delete registry value\nusing (RegistryKey key = Registry.CurrentUser.OpenSubKey(@\"Software\\MyApp\", true))\n{\n    key?.DeleteValue(\"OldSetting\", false);\n}",
+    "description": "Registry operations using Microsoft.Win32.Registry",
+    "tags": ["registry", "wscript", "registrykey", "getvalue", "setvalue"],
+    "complexity": "medium",
+    "confidence": 1.0
+  }
+}

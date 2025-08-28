@@ -1,0 +1,91 @@
+{
+  "on_error_goto": {
+    "pattern": "On Error GoTo ErrorHandler\n\n' Code that might fail\nresult = 10 / value\nDebug.Print \"Success\"\nExit Sub\n\nErrorHandler:\n    MsgBox \"Error: \" & Err.Description\n    Resume Next",
+    "csharp_equivalent": "try\n{\n    // Code that might fail\n    result = 10 / value;\n    Console.WriteLine(\"Success\");\n}\ncatch (Exception ex)\n{\n    MessageBox.Show(\"Error: \" + ex.Message);\n    // Continue execution (equivalent to Resume Next)\n}",
+    "description": "On Error GoTo converted to try-catch block",
+    "tags": ["error", "exception", "onerror", "goto", "try-catch"],
+    "complexity": "high",
+    "confidence": 0.9
+  },
+
+  "on_error_resume_next": {
+    "pattern": "On Error Resume Next\n\n' Code that might fail\nresult1 = operation1()\nresult2 = operation2()\nresult3 = operation3()\n\nIf Err.Number <> 0 Then\n    MsgBox \"An error occurred: \" & Err.Description\n    Err.Clear\nEnd If\n\nOn Error GoTo 0",
+    "csharp_equivalent": "Exception lastError = null;\n\n// Code that might fail\ntry { result1 = operation1(); } catch (Exception ex) { lastError = ex; }\ntry { result2 = operation2(); } catch (Exception ex) { lastError = ex; }\ntry { result3 = operation3(); } catch (Exception ex) { lastError = ex; }\n\nif (lastError != null)\n{\n    MessageBox.Show(\"An error occurred: \" + lastError.Message);\n    lastError = null;\n}",
+    "description": "On Error Resume Next pattern with individual try-catch blocks",
+    "tags": ["error", "resume", "next", "continue", "try-catch"],
+    "complexity": "high",
+    "confidence": 0.8
+  },
+
+  "err_raise": {
+    "pattern": "If value < 0 Then\n    Err.Raise 1001, \"MyFunction\", \"Value cannot be negative\"\nEnd If\n\nIf IsEmpty(data) Then\n    Err.Raise vbObjectError + 1002, , \"Data is required\"\nEnd If",
+    "csharp_equivalent": "if (value < 0)\n{\n    throw new ArgumentException(\"Value cannot be negative\");\n}\n\nif (data == null || string.IsNullOrEmpty(data.ToString()))\n{\n    throw new InvalidOperationException(\"Data is required\");\n}",
+    "description": "Err.Raise converted to appropriate exception types",
+    "tags": ["error", "raise", "throw", "exception", "argumentexception"],
+    "complexity": "medium",
+    "confidence": 1.0
+  },
+
+  "err_object_properties": {
+    "pattern": "If Err.Number <> 0 Then\n    Debug.Print \"Error Number: \" & Err.Number\n    Debug.Print \"Error Description: \" & Err.Description\n    Debug.Print \"Error Source: \" & Err.Source\n    Err.Clear\nEnd If",
+    "csharp_equivalent": "catch (Exception ex)\n{\n    Console.WriteLine(\"Error Type: \" + ex.GetType().Name);\n    Console.WriteLine(\"Error Message: \" + ex.Message);\n    Console.WriteLine(\"Error Source: \" + ex.Source);\n    Console.WriteLine(\"Stack Trace: \" + ex.StackTrace);\n    // No need to clear - exception handling is automatic\n}",
+    "description": "VB6 Err object properties mapped to Exception properties",
+    "tags": ["error", "properties", "number", "description", "source", "exception"],
+    "complexity": "medium",
+    "confidence": 1.0
+  },
+
+  "custom_error_class": {
+    "pattern": "' In VB6 class module\nPublic Property Get Number() As Long\n    Number = m_Number\nEnd Property\n\nPublic Property Let Number(value As Long)\n    m_Number = value\nEnd Property\n\nPublic Sub RaiseError(errNum As Long, errDesc As String)\n    Err.Raise errNum, , errDesc\nEnd Sub",
+    "csharp_equivalent": "public class CustomException : Exception\n{\n    public int ErrorNumber { get; set; }\n    \n    public CustomException(int errorNumber, string message) : base(message)\n    {\n        ErrorNumber = errorNumber;\n    }\n    \n    public CustomException(int errorNumber, string message, Exception innerException) \n        : base(message, innerException)\n    {\n        ErrorNumber = errorNumber;\n    }\n}",
+    "description": "Custom error handling class converted to custom exception",
+    "tags": ["custom", "error", "exception", "class", "inheritance"],
+    "complexity": "medium",
+    "confidence": 1.0
+  },
+
+  "error_logging": {
+    "pattern": "Private Sub LogError(errNum As Long, errDesc As String, procName As String)\n    Open \"error.log\" For Append As #1\n    Print #1, Format(Now, \"yyyy-mm-dd hh:mm:ss\") & \" - Error \" & errNum & \" in \" & procName & \": \" & errDesc\n    Close #1\nEnd Sub",
+    "csharp_equivalent": "private void LogError(Exception ex, string methodName)\n{\n    string logEntry = $\"{DateTime.Now:yyyy-MM-dd HH:mm:ss} - Error in {methodName}: {ex.Message}\";\n    File.AppendAllText(\"error.log\", logEntry + Environment.NewLine);\n}\n\n// Or using built-in logging:\nusing Microsoft.Extensions.Logging;\n\nprivate readonly ILogger<MyClass> _logger;\n\nprivate void LogError(Exception ex, string methodName)\n{\n    _logger.LogError(ex, \"Error in {MethodName}\", methodName);\n}",
+    "description": "Error logging to file or using logging framework",
+    "tags": ["error", "logging", "file", "ilogger", "datetime"],
+    "complexity": "medium",
+    "confidence": 1.0
+  },
+
+  "validation_with_errors": {
+    "pattern": "Private Function ValidateInput(value As String) As Boolean\n    On Error GoTo ValidationError\n    \n    If Len(value) = 0 Then\n        Err.Raise 1001, , \"Value is required\"\n    End If\n    \n    If Not IsNumeric(value) Then\n        Err.Raise 1002, , \"Value must be numeric\"\n    End If\n    \n    ValidateInput = True\n    Exit Function\n    \nValidationError:\n    ValidateInput = False\nEnd Function",
+    "csharp_equivalent": "private bool ValidateInput(string value, out string errorMessage)\n{\n    errorMessage = string.Empty;\n    \n    if (string.IsNullOrEmpty(value))\n    {\n        errorMessage = \"Value is required\";\n        return false;\n    }\n    \n    if (!double.TryParse(value, out _))\n    {\n        errorMessage = \"Value must be numeric\";\n        return false;\n    }\n    \n    return true;\n}\n\n// Or using exceptions:\nprivate void ValidateInput(string value)\n{\n    if (string.IsNullOrEmpty(value))\n        throw new ArgumentException(\"Value is required\");\n    \n    if (!double.TryParse(value, out _))\n        throw new ArgumentException(\"Value must be numeric\");\n}",
+    "description": "Input validation with error handling patterns",
+    "tags": ["validation", "input", "error", "tryparse", "argumentexception"],
+    "complexity": "medium",
+    "confidence": 1.0
+  },
+
+  "finally_equivalent": {
+    "pattern": "' VB6 doesn't have Finally, but cleanup was done like this:\nOn Error GoTo ErrorHandler\n\n' Main code\nSet obj = CreateObject(\"Excel.Application\")\n' Use object\nSet obj = Nothing  ' Cleanup\nExit Sub\n\nErrorHandler:\n    If Not obj Is Nothing Then\n        Set obj = Nothing  ' Cleanup in error case too\n    End If\n    Resume Next",
+    "csharp_equivalent": "object obj = null;\ntry\n{\n    // Main code\n    obj = Activator.CreateInstance(Type.GetTypeFromProgID(\"Excel.Application\"));\n    // Use object\n}\nfinally\n{\n    // Cleanup always happens\n    if (obj != null && Marshal.IsComObject(obj))\n    {\n        Marshal.ReleaseComObject(obj);\n        obj = null;\n    }\n}\n\n// Or better: use 'using' statement for IDisposable objects",
+    "description": "VB6 cleanup patterns converted to try-finally or using statements",
+    "tags": ["cleanup", "finally", "using", "dispose", "com"],
+    "complexity": "high",
+    "confidence": 0.9
+  },
+
+  "nested_error_handling": {
+    "pattern": "Private Sub MainOperation()\n    On Error GoTo MainError\n    \n    Call SubOperation1\n    Call SubOperation2\n    Exit Sub\n    \nMainError:\n    MsgBox \"Main operation failed: \" & Err.Description\nEnd Sub\n\nPrivate Sub SubOperation1()\n    On Error GoTo SubError\n    \n    ' Risky operation\n    Exit Sub\n    \nSubError:\n    Err.Raise Err.Number, \"SubOperation1\", Err.Description\nEnd Sub",
+    "csharp_equivalent": "private void MainOperation()\n{\n    try\n    {\n        SubOperation1();\n        SubOperation2();\n    }\n    catch (Exception ex)\n    {\n        MessageBox.Show($\"Main operation failed: {ex.Message}\");\n    }\n}\n\nprivate void SubOperation1()\n{\n    try\n    {\n        // Risky operation\n    }\n    catch (Exception ex)\n    {\n        throw new InvalidOperationException($\"SubOperation1 failed: {ex.Message}\", ex);\n    }\n}",
+    "description": "Nested error handling with exception propagation",
+    "tags": ["nested", "error", "propagation", "innerexception", "rethrow"],
+    "complexity": "high",
+    "confidence": 0.9
+  },
+
+  "error_handling_in_loops": {
+    "pattern": "For i = 1 To 10\n    On Error Resume Next\n    result = ProcessItem(i)\n    If Err.Number <> 0 Then\n        Debug.Print \"Failed to process item \" & i & \": \" & Err.Description\n        Err.Clear\n    Else\n        Debug.Print \"Processed item \" & i & \" successfully\"\n    End If\nNext i",
+    "csharp_equivalent": "for (int i = 1; i <= 10; i++)\n{\n    try\n    {\n        var result = ProcessItem(i);\n        Console.WriteLine($\"Processed item {i} successfully\");\n    }\n    catch (Exception ex)\n    {\n        Console.WriteLine($\"Failed to process item {i}: {ex.Message}\");\n        // Continue with next iteration\n    }\n}",
+    "description": "Error handling within loops to continue processing",
+    "tags": ["loop", "error", "continue", "processing", "resilience"],
+    "complexity": "medium",
+    "confidence": 1.0
+  }
+}

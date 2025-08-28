@@ -1,0 +1,235 @@
+{
+  "variable_declarations": {
+    "pattern": "Dim strName As String\nDim intAge As Integer\nDim dblSalary As Double\nDim blnActive As Boolean\nDim varData As Variant",
+    "csharp_equivalent": "string strName;\nint intAge;\ndouble dblSalary;\nbool blnActive;\nobject varData;",
+    "description": "Basic variable declarations with VB6 to C# type mappings",
+    "tags": ["variables", "declarations", "types", "dim"],
+    "complexity": "low",
+    "confidence": 1.0
+  },
+
+  "function_declaration": {
+    "pattern": "Public Function CalculateTotal(ByVal price As Double, ByVal quantity As Integer) As Double\n    CalculateTotal = price * quantity\nEnd Function",
+    "csharp_equivalent": "public double CalculateTotal(double price, int quantity)\n{\n    return price * quantity;\n}",
+    "description": "Function declaration with parameters and return value",
+    "tags": ["function", "parameters", "return", "byval"],
+    "complexity": "low",
+    "confidence": 1.0
+  },
+
+  "subroutine_declaration": {
+    "pattern": "Public Sub DisplayMessage(ByVal message As String)\n    MsgBox message\nEnd Sub",
+    "csharp_equivalent": "public void DisplayMessage(string message)\n{\n    MessageBox.Show(message);\n}",
+    "description": "Subroutine declaration with void return type",
+    "tags": ["subroutine", "sub", "void", "parameters"],
+    "complexity": "low",
+    "confidence": 1.0
+  },
+
+  "if_then_else": {
+    "pattern": "If age >= 18 Then\n    status = \"Adult\"\nElseIf age >= 13 Then\n    status = \"Teen\"\nElse\n    status = \"Child\"\nEnd If",
+    "csharp_equivalent": "if (age >= 18)\n{\n    status = \"Adult\";\n}\nelse if (age >= 13)\n{\n    status = \"Teen\";\n}\nelse\n{\n    status = \"Child\";\n}",
+    "description": "If-Then-Else conditional statements",
+    "tags": ["conditional", "if", "then", "else", "elseif"],
+    "complexity": "low",
+    "confidence": 1.0
+  },
+
+  "select_case": {
+    "pattern": "Select Case dayOfWeek\n    Case 1\n        dayName = \"Monday\"\n    Case 2\n        dayName = \"Tuesday\"\n    Case 3 To 5\n        dayName = \"Midweek\"\n    Case Else\n        dayName = \"Weekend\"\nEnd Select",
+    "csharp_equivalent": "switch (dayOfWeek)\n{\n    case 1:\n        dayName = \"Monday\";\n        break;\n    case 2:\n        dayName = \"Tuesday\";\n        break;\n    case 3:\n    case 4:\n    case 5:\n        dayName = \"Midweek\";\n        break;\n    default:\n        dayName = \"Weekend\";\n        break;\n}",
+    "description": "Select Case statement converted to switch-case",
+    "tags": ["select", "case", "switch", "break", "default"],
+    "complexity": "medium",
+    "confidence": 1.0
+  },
+
+  "for_loop": {
+    "pattern": "For i = 1 To 10\n    total = total + i\nNext i\n\nFor i = 10 To 1 Step -1\n    Debug.Print i\nNext",
+    "csharp_equivalent": "for (int i = 1; i <= 10; i++)\n{\n    total = total + i;\n}\n\nfor (int i = 10; i >= 1; i--)\n{\n    Console.WriteLine(i);\n}",
+    "description": "For loops with step values",
+    "tags": ["for", "loop", "step", "next", "iteration"],
+    "complexity": "medium",
+    "confidence": 1.0
+  },
+
+  "for_each_loop": {
+    "pattern": "Dim item As Variant\nFor Each item In collection\n    Debug.Print item\nNext item",
+    "csharp_equivalent": "foreach (var item in collection)\n{\n    Console.WriteLine(item);\n}",
+    "description": "For Each loop iteration over collections",
+    "tags": ["foreach", "collection", "iteration", "variant"],
+    "complexity": "medium",
+    "confidence": 1.0
+  },
+
+  "while_loop": {
+    "pattern": "While condition = True\n    ' Do something\n    counter = counter + 1\n    If counter > 100 Then Exit While\nWend",
+    "csharp_equivalent": "while (condition == true)\n{\n    // Do something\n    counter = counter + 1;\n    if (counter > 100) break;\n}",
+    "description": "While loop with exit condition",
+    "tags": ["while", "loop", "condition", "break", "exit"],
+    "complexity": "medium",
+    "confidence": 1.0
+  },
+
+  "do_loop": {
+    "pattern": "Do While counter < 10\n    counter = counter + 1\nLoop\n\nDo\n    counter = counter + 1\nLoop Until counter >= 10",
+    "csharp_equivalent": "while (counter < 10)\n{\n    counter = counter + 1;\n}\n\ndo\n{\n    counter = counter + 1;\n} while (counter < 10);",
+    "description": "Do-While and Do-Until loops",
+    "tags": ["do", "while", "until", "loop"],
+    "complexity": "medium",
+    "confidence": 1.0
+  },
+
+  "error_handling": {
+    "pattern": "On Error GoTo ErrorHandler\n' Some code that might fail\nresult = 10 / value\nExit Sub\n\nErrorHandler:\n    MsgBox \"Error: \" & Err.Description\n    Resume Next",
+    "csharp_equivalent": "try\n{\n    // Some code that might fail\n    result = 10 / value;\n}\ncatch (Exception ex)\n{\n    MessageBox.Show(\"Error: \" + ex.Message);\n    // Continue execution\n}",
+    "description": "Error handling with On Error GoTo converted to try-catch",
+    "tags": ["error", "exception", "try", "catch", "onerror"],
+    "complexity": "high",
+    "confidence": 0.9
+  },
+
+  "error_raising": {
+    "pattern": "If value < 0 Then\n    Err.Raise 1001, \"MyFunction\", \"Value cannot be negative\"\nEnd If",
+    "csharp_equivalent": "if (value < 0)\n{\n    throw new ArgumentException(\"Value cannot be negative\");\n}",
+    "description": "Error raising with Err.Raise converted to throw exception",
+    "tags": ["error", "raise", "throw", "exception", "argumentexception"],
+    "complexity": "medium",
+    "confidence": 1.0
+  },
+
+  "string_operations": {
+    "pattern": "fullName = firstName & \" \" & lastName\nlength = Len(fullName)\nupperName = UCase(fullName)\nlowerName = LCase(fullName)\ntrimmed = Trim(fullName)",
+    "csharp_equivalent": "string fullName = firstName + \" \" + lastName;\nint length = fullName.Length;\nstring upperName = fullName.ToUpper();\nstring lowerName = fullName.ToLower();\nstring trimmed = fullName.Trim();",
+    "description": "Common string operations and concatenation",
+    "tags": ["string", "concatenation", "length", "upper", "lower", "trim"],
+    "complexity": "low",
+    "confidence": 1.0
+  },
+
+  "string_functions": {
+    "pattern": "leftPart = Left(text, 5)\nrightPart = Right(text, 3)\nmiddlePart = Mid(text, 2, 4)\nposition = InStr(text, \"search\")",
+    "csharp_equivalent": "string leftPart = text.Substring(0, Math.Min(5, text.Length));\nstring rightPart = text.Substring(Math.Max(0, text.Length - 3));\nstring middlePart = text.Substring(1, Math.Min(4, text.Length - 1));\nint position = text.IndexOf(\"search\") + 1; // VB6 is 1-based",
+    "description": "VB6 string functions converted to C# methods",
+    "tags": ["string", "substring", "left", "right", "mid", "instr", "indexof"],
+    "complexity": "high",
+    "confidence": 0.8
+  },
+
+  "numeric_functions": {
+    "pattern": "result = Int(3.7)\nresult = Fix(3.7)\nresult = Round(3.7, 2)\nresult = Abs(-5)\nresult = Sqr(16)",
+    "csharp_equivalent": "int result = (int)Math.Floor(3.7);\nresult = (int)Math.Truncate(3.7);\ndouble result2 = Math.Round(3.7, 2);\nresult = Math.Abs(-5);\ndouble result3 = Math.Sqrt(16);",
+    "description": "Numeric functions and mathematical operations",
+    "tags": ["numeric", "math", "int", "fix", "round", "abs", "sqrt"],
+    "complexity": "medium",
+    "confidence": 1.0
+  },
+
+  "date_time_operations": {
+    "pattern": "currentDate = Now\ncurrentTime = Time\njustDate = Date\nformattedDate = Format(Now, \"mm/dd/yyyy\")\nyearPart = Year(Now)",
+    "csharp_equivalent": "DateTime currentDate = DateTime.Now;\nDateTime currentTime = DateTime.Now;\nDateTime justDate = DateTime.Today;\nstring formattedDate = DateTime.Now.ToString(\"MM/dd/yyyy\");\nint yearPart = DateTime.Now.Year;",
+    "description": "Date and time operations",
+    "tags": ["datetime", "now", "date", "time", "format", "year"],
+    "complexity": "medium",
+    "confidence": 1.0
+  },
+
+  "type_conversion": {
+    "pattern": "strValue = CStr(123)\nintValue = CInt(\"456\")\ndblValue = CDbl(\"78.9\")\nblnValue = CBool(1)",
+    "csharp_equivalent": "string strValue = 123.ToString();\nint intValue = int.Parse(\"456\");\ndouble dblValue = double.Parse(\"78.9\");\nbool blnValue = Convert.ToBoolean(1);",
+    "description": "Type conversion functions",
+    "tags": ["conversion", "cstr", "cint", "cdbl", "cbool", "parse", "tostring"],
+    "complexity": "medium",
+    "confidence": 1.0
+  },
+
+  "array_operations": {
+    "pattern": "Dim arr(1 To 10) As Integer\nDim dynArr() As String\nReDim dynArr(5)\nReDim Preserve dynArr(10)\nubound = UBound(arr)\nlbound = LBound(arr)",
+    "csharp_equivalent": "int[] arr = new int[10]; // 0-based indexing\nstring[] dynArr;\ndynArr = new string[6]; // 0 to 5\n// For preserve functionality, use Array.Resize or List<T>\nArray.Resize(ref dynArr, 11);\nint ubound = arr.Length - 1;\nint lbound = 0;",
+    "description": "Array declarations and operations",
+    "tags": ["array", "redim", "preserve", "ubound", "lbound", "resize"],
+    "complexity": "high",
+    "confidence": 0.8
+  },
+
+  "collection_operations": {
+    "pattern": "Dim col As New Collection\ncol.Add \"Item1\", \"Key1\"\ncol.Add \"Item2\"\nitem = col.Item(\"Key1\")\ncol.Remove \"Key1\"\ncount = col.Count",
+    "csharp_equivalent": "Dictionary<string, string> col = new Dictionary<string, string>();\ncol.Add(\"Key1\", \"Item1\");\n// For items without keys, use List<string>\nList<string> list = new List<string>();\nlist.Add(\"Item2\");\nstring item = col[\"Key1\"];\ncol.Remove(\"Key1\");\nint count = col.Count;",
+    "description": "VB6 Collection converted to Dictionary or List",
+    "tags": ["collection", "dictionary", "list", "add", "remove", "count"],
+    "complexity": "high",
+    "confidence": 0.9
+  },
+
+  "object_creation": {
+    "pattern": "Dim obj As Object\nSet obj = CreateObject(\"Excel.Application\")\nSet obj = New MyClass\nSet obj = Nothing",
+    "csharp_equivalent": "// For COM objects:\n// var obj = Activator.CreateInstance(Type.GetTypeFromProgID(\"Excel.Application\"));\n// For regular objects:\nMyClass obj = new MyClass();\n// For disposal:\nobj = null;\n// Better: using statement for IDisposable objects",
+    "description": "Object creation and cleanup",
+    "tags": ["object", "createobject", "new", "nothing", "com", "activator"],
+    "complexity": "high",
+    "confidence": 0.7
+  },
+
+  "with_statement": {
+    "pattern": "With objPerson\n    .Name = \"John\"\n    .Age = 30\n    .Address = \"123 Main St\"\nEnd With",
+    "csharp_equivalent": "// C# doesn't have With statement, use object initializer or direct assignment\nobjPerson.Name = \"John\";\nobjPerson.Age = 30;\nobjPerson.Address = \"123 Main St\";\n\n// Or with object initializer:\n// var objPerson = new Person\n// {\n//     Name = \"John\",\n//     Age = 30,\n//     Address = \"123 Main St\"\n// };",
+    "description": "With statement for object property assignment",
+    "tags": ["with", "object", "properties", "initializer"],
+    "complexity": "medium",
+    "confidence": 0.9
+  },
+
+  "property_procedures": {
+    "pattern": "Private m_Name As String\n\nPublic Property Get Name() As String\n    Name = m_Name\nEnd Property\n\nPublic Property Let Name(ByVal value As String)\n    m_Name = value\nEnd Property",
+    "csharp_equivalent": "private string m_Name;\n\npublic string Name\n{\n    get { return m_Name; }\n    set { m_Name = value; }\n}\n\n// Or with auto-implemented property:\n// public string Name { get; set; }",
+    "description": "VB6 Property Get/Let converted to C# properties",
+    "tags": ["property", "get", "set", "let", "encapsulation"],
+    "complexity": "medium",
+    "confidence": 1.0
+  },
+
+  "class_initialization": {
+    "pattern": "Private Sub Class_Initialize()\n    ' Constructor code\n    m_Value = 0\nEnd Sub\n\nPrivate Sub Class_Terminate()\n    ' Destructor code\n    Set m_Object = Nothing\nEnd Sub",
+    "csharp_equivalent": "public MyClass()\n{\n    // Constructor code\n    m_Value = 0;\n}\n\n// Finalizer (rarely needed)\n~MyClass()\n{\n    // Cleanup code\n    m_Object = null;\n}\n\n// Better: Implement IDisposable\npublic void Dispose()\n{\n    m_Object = null;\n}",
+    "description": "Class initialization and termination",
+    "tags": ["class", "constructor", "destructor", "initialize", "terminate", "dispose"],
+    "complexity": "medium",
+    "confidence": 0.9
+  },
+
+  "optional_parameters": {
+    "pattern": "Public Function Calculate(ByVal x As Double, Optional ByVal y As Double = 1) As Double\n    Calculate = x * y\nEnd Function",
+    "csharp_equivalent": "public double Calculate(double x, double y = 1.0)\n{\n    return x * y;\n}",
+    "description": "Optional parameters with default values",
+    "tags": ["optional", "parameters", "default", "values"],
+    "complexity": "low",
+    "confidence": 1.0
+  },
+
+  "byref_parameters": {
+    "pattern": "Public Sub Swap(ByRef a As Integer, ByRef b As Integer)\n    Dim temp As Integer\n    temp = a\n    a = b\n    b = temp\nEnd Sub",
+    "csharp_equivalent": "public void Swap(ref int a, ref int b)\n{\n    int temp = a;\n    a = b;\n    b = temp;\n}",
+    "description": "ByRef parameters converted to ref parameters",
+    "tags": ["byref", "ref", "parameters", "reference"],
+    "complexity": "medium",
+    "confidence": 1.0
+  },
+
+  "debug_print": {
+    "pattern": "Debug.Print \"Value is: \" & value\nDebug.Print \"Starting process...\"\nDebug.Assert condition",
+    "csharp_equivalent": "System.Diagnostics.Debug.WriteLine(\"Value is: \" + value);\nSystem.Diagnostics.Debug.WriteLine(\"Starting process...\");\nSystem.Diagnostics.Debug.Assert(condition);",
+    "description": "Debug output and assertions",
+    "tags": ["debug", "print", "writeline", "assert"],
+    "complexity": "low",
+    "confidence": 1.0
+  },
+
+  "file_operations": {
+    "pattern": "Open \"data.txt\" For Input As #1\nLine Input #1, textLine\nClose #1\n\nOpen \"output.txt\" For Output As #2\nPrint #2, \"Hello World\"\nClose #2",
+    "csharp_equivalent": "// Reading file\nstring textLine = File.ReadAllText(\"data.txt\");\n// or line by line:\nstring[] lines = File.ReadAllLines(\"data.txt\");\n\n// Writing file\nFile.WriteAllText(\"output.txt\", \"Hello World\");\n// or using StreamWriter:\nusing (StreamWriter writer = new StreamWriter(\"output.txt\"))\n{\n    writer.WriteLine(\"Hello World\");\n}",
+    "description": "File input/output operations",
+    "tags": ["file", "input", "output", "open", "close", "streamwriter"],
+    "complexity": "high",
+    "confidence": 0.8
+  }
+}

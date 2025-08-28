@@ -1,0 +1,145 @@
+{
+  "adodb_connection": {
+    "pattern": "Dim conn As ADODB.Connection\nSet conn = New ADODB.Connection\nconn.ConnectionString = \"Provider=Microsoft.Jet.OLEDB.4.0;Data Source=database.mdb\"\nconn.Open\n' Use connection\nconn.Close\nSet conn = Nothing",
+    "csharp_equivalent": "using (var context = new ApplicationDbContext())\n{\n    // Use Entity Framework context\n    // Connection automatically managed\n}\n\n// Or with raw connection:\nusing (var conn = new SqlConnection(connectionString))\n{\n    conn.Open();\n    // Use connection\n    // Automatically closed and disposed\n}",
+    "description": "ADODB Connection converted to Entity Framework DbContext or SqlConnection",
+    "tags": ["adodb", "connection", "dbcontext", "sqlconnection", "using"],
+    "complexity": "high",
+    "confidence": 0.9
+  },
+
+  "adodb_recordset_select": {
+    "pattern": "Dim rs As ADODB.Recordset\nSet rs = New ADODB.Recordset\nrs.Open \"SELECT * FROM Customers WHERE City = 'London'\", conn, adOpenStatic\nWhile Not rs.EOF\n    Debug.Print rs(\"CustomerName\")\n    rs.MoveNext\nWend\nrs.Close\nSet rs = Nothing",
+    "csharp_equivalent": "using (var context = new ApplicationDbContext())\n{\n    var customers = context.Customers\n        .Where(c => c.City == \"London\")\n        .ToList();\n    \n    foreach (var customer in customers)\n    {\n        Console.WriteLine(customer.CustomerName);\n    }\n}",
+    "description": "ADODB Recordset SELECT query converted to LINQ",
+    "tags": ["recordset", "select", "linq", "where", "foreach", "eof"],
+    "complexity": "high",
+    "confidence": 0.9
+  },
+
+  "adodb_recordset_insert": {
+    "pattern": "Dim rs As ADODB.Recordset\nSet rs = New ADODB.Recordset\nrs.Open \"Customers\", conn, adOpenDynamic, adLockOptimistic\nrs.AddNew\nrs(\"CustomerName\") = \"New Customer\"\nrs(\"City\") = \"New York\"\nrs.Update\nrs.Close",
+    "csharp_equivalent": "using (var context = new ApplicationDbContext())\n{\n    var customer = new Customer\n    {\n        CustomerName = \"New Customer\",\n        City = \"New York\"\n    };\n    \n    context.Customers.Add(customer);\n    context.SaveChanges();\n}",
+    "description": "ADODB Recordset INSERT operation converted to Entity Framework Add",
+    "tags": ["recordset", "insert", "addnew", "update", "add", "savechanges"],
+    "complexity": "high",
+    "confidence": 0.9
+  },
+
+  "adodb_recordset_update": {
+    "pattern": "Dim rs As ADODB.Recordset\nSet rs = New ADODB.Recordset\nrs.Open \"SELECT * FROM Customers WHERE CustomerID = 1\", conn, adOpenDynamic, adLockOptimistic\nIf Not rs.EOF Then\n    rs(\"CustomerName\") = \"Updated Name\"\n    rs.Update\nEnd If\nrs.Close",
+    "csharp_equivalent": "using (var context = new ApplicationDbContext())\n{\n    var customer = context.Customers.FirstOrDefault(c => c.CustomerID == 1);\n    if (customer != null)\n    {\n        customer.CustomerName = \"Updated Name\";\n        context.SaveChanges();\n    }\n}",
+    "description": "ADODB Recordset UPDATE operation converted to Entity Framework",
+    "tags": ["recordset", "update", "firstordefault", "savechanges"],
+    "complexity": "high",
+    "confidence": 0.9
+  },
+
+  "adodb_recordset_delete": {
+    "pattern": "Dim rs As ADODB.Recordset\nSet rs = New ADODB.Recordset\nrs.Open \"SELECT * FROM Customers WHERE CustomerID = 1\", conn, adOpenDynamic, adLockOptimistic\nIf Not rs.EOF Then\n    rs.Delete\nEnd If\nrs.Close",
+    "csharp_equivalent": "using (var context = new ApplicationDbContext())\n{\n    var customer = context.Customers.FirstOrDefault(c => c.CustomerID == 1);\n    if (customer != null)\n    {\n        context.Customers.Remove(customer);\n        context.SaveChanges();\n    }\n}",
+    "description": "ADODB Recordset DELETE operation converted to Entity Framework Remove",
+    "tags": ["recordset", "delete", "remove", "firstordefault", "savechanges"],
+    "complexity": "high",
+    "confidence": 0.9
+  },
+
+  "adodb_command": {
+    "pattern": "Dim cmd As ADODB.Command\nSet cmd = New ADODB.Command\ncmd.ActiveConnection = conn\ncmd.CommandText = \"INSERT INTO Customers (CustomerName, City) VALUES (?, ?)\"\ncmd.Parameters.Append cmd.CreateParameter(, adVarChar, adParamInput, 50, \"John Doe\")\ncmd.Parameters.Append cmd.CreateParameter(, adVarChar, adParamInput, 50, \"Boston\")\ncmd.Execute",
+    "csharp_equivalent": "using (var context = new ApplicationDbContext())\n{\n    // Entity Framework approach:\n    var customer = new Customer\n    {\n        CustomerName = \"John Doe\",\n        City = \"Boston\"\n    };\n    context.Customers.Add(customer);\n    context.SaveChanges();\n}\n\n// Or raw SQL with parameters:\n// context.Database.ExecuteSqlRaw(\"INSERT INTO Customers (CustomerName, City) VALUES ({0}, {1})\", \"John Doe\", \"Boston\");",
+    "description": "ADODB Command with parameters converted to Entity Framework",
+    "tags": ["command", "parameters", "executesqlraw", "parameterized"],
+    "complexity": "high",
+    "confidence": 0.8
+  },
+
+  "sql_string_concatenation": {
+    "pattern": "sql = \"SELECT * FROM Customers WHERE CustomerName = '\" & customerName & \"' AND City = '\" & city & \"'\"",
+    "csharp_equivalent": "// Entity Framework (preferred):\nvar customers = context.Customers\n    .Where(c => c.CustomerName == customerName && c.City == city)\n    .ToList();\n\n// Or parameterized SQL:\nvar customers = context.Customers\n    .FromSqlRaw(\"SELECT * FROM Customers WHERE CustomerName = {0} AND City = {1}\", customerName, city)\n    .ToList();",
+    "description": "SQL string concatenation converted to parameterized queries",
+    "tags": ["sql", "concatenation", "parameters", "injection", "fromsqlraw"],
+    "complexity": "high",
+    "confidence": 0.9
+  },
+
+  "data_type_conversion": {
+    "pattern": "If Not IsNull(rs(\"BirthDate\")) Then\n    birthDate = CDate(rs(\"BirthDate\"))\nEnd If\n\nIf Not IsNull(rs(\"Salary\")) Then\n    salary = CDbl(rs(\"Salary\"))\nEnd If",
+    "csharp_equivalent": "DateTime? birthDate = customer.BirthDate; // Nullable types handle nulls\ndouble? salary = customer.Salary;\n\n// Or with null checking:\nif (customer.BirthDate.HasValue)\n{\n    DateTime birthDate = customer.BirthDate.Value;\n}\n\nif (customer.Salary.HasValue)\n{\n    double salary = customer.Salary.Value;\n}",
+    "description": "Null handling and data type conversion",
+    "tags": ["null", "nullable", "hasvalue", "conversion", "isnull"],
+    "complexity": "medium",
+    "confidence": 1.0
+  },
+
+  "transaction_handling": {
+    "pattern": "conn.BeginTrans\nOn Error GoTo RollbackTrans\n\n' Multiple database operations\ncmd1.Execute\ncmd2.Execute\ncmd3.Execute\n\nconn.CommitTrans\nExit Sub\n\nRollbackTrans:\nconn.RollbackTrans\nMsgBox \"Transaction failed: \" & Err.Description",
+    "csharp_equivalent": "using (var context = new ApplicationDbContext())\n{\n    using (var transaction = context.Database.BeginTransaction())\n    {\n        try\n        {\n            // Multiple database operations\n            context.Customers.Add(customer1);\n            context.Orders.Add(order1);\n            context.OrderDetails.Add(detail1);\n            \n            context.SaveChanges();\n            transaction.Commit();\n        }\n        catch (Exception ex)\n        {\n            transaction.Rollback();\n            MessageBox.Show(\"Transaction failed: \" + ex.Message);\n            throw;\n        }\n    }\n}",
+    "description": "Database transactions with commit/rollback",
+    "tags": ["transaction", "commit", "rollback", "begintransaction", "try-catch"],
+    "complexity": "high",
+    "confidence": 0.9
+  },
+
+  "stored_procedure_call": {
+    "pattern": "Dim cmd As ADODB.Command\nSet cmd = New ADODB.Command\ncmd.ActiveConnection = conn\ncmd.CommandText = \"sp_GetCustomerOrders\"\ncmd.CommandType = adCmdStoredProc\ncmd.Parameters.Append cmd.CreateParameter(\"@CustomerID\", adInteger, adParamInput, , 123)\nSet rs = cmd.Execute",
+    "csharp_equivalent": "using (var context = new ApplicationDbContext())\n{\n    var customerOrders = context.CustomerOrders\n        .FromSqlRaw(\"EXEC sp_GetCustomerOrders {0}\", 123)\n        .ToList();\n}\n\n// Or with stored procedure method:\n// var customerOrders = context.GetCustomerOrders(123);",
+    "description": "Stored procedure calls with parameters",
+    "tags": ["storedprocedure", "parameters", "fromsqlraw", "exec"],
+    "complexity": "high",
+    "confidence": 0.8
+  },
+
+  "database_schema_creation": {
+    "pattern": "sql = \"CREATE TABLE Customers (\" & _\n      \"CustomerID COUNTER PRIMARY KEY, \" & _\n      \"CustomerName TEXT(50) NOT NULL, \" & _\n      \"City TEXT(50), \" & _\n      \"Country TEXT(50))\"",
+    "csharp_equivalent": "// Entity Framework Code First approach:\npublic class Customer\n{\n    [Key]\n    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]\n    public int CustomerID { get; set; }\n    \n    [Required]\n    [MaxLength(50)]\n    public string CustomerName { get; set; }\n    \n    [MaxLength(50)]\n    public string City { get; set; }\n    \n    [MaxLength(50)]\n    public string Country { get; set; }\n}\n\n// DbContext will create table automatically",
+    "description": "Database schema creation using Entity Framework attributes",
+    "tags": ["schema", "table", "entity", "key", "required", "maxlength"],
+    "complexity": "high",
+    "confidence": 0.9
+  },
+
+  "recordset_navigation": {
+    "pattern": "rs.MoveFirst\nWhile Not rs.EOF\n    Debug.Print rs(\"CustomerName\")\n    rs.MoveNext\nWend\n\nrs.MoveLast\nIf rs.RecordCount > 0 Then\n    lastRecord = rs(\"CustomerName\")\nEnd If",
+    "csharp_equivalent": "var customers = context.Customers.ToList();\n\n// Forward iteration\nforeach (var customer in customers)\n{\n    Console.WriteLine(customer.CustomerName);\n}\n\n// Get last record\nvar lastCustomer = customers.LastOrDefault();\nif (lastCustomer != null)\n{\n    string lastRecord = lastCustomer.CustomerName;\n}",
+    "description": "Recordset navigation converted to LINQ operations",
+    "tags": ["navigation", "movefirst", "movenext", "movelast", "foreach", "lastordefault"],
+    "complexity": "medium",
+    "confidence": 1.0
+  },
+
+  "field_properties": {
+    "pattern": "For i = 0 To rs.Fields.Count - 1\n    fieldName = rs.Fields(i).Name\n    fieldType = rs.Fields(i).Type\n    fieldSize = rs.Fields(i).DefinedSize\n    Debug.Print fieldName & \" - \" & fieldType\nNext i",
+    "csharp_equivalent": "var entityType = context.Model.FindEntityType(typeof(Customer));\nforeach (var property in entityType.GetProperties())\n{\n    string fieldName = property.Name;\n    string fieldType = property.ClrType.Name;\n    int? fieldSize = property.GetMaxLength();\n    Console.WriteLine($\"{fieldName} - {fieldType}\");\n}\n\n// Or using reflection:\nvar properties = typeof(Customer).GetProperties();\nforeach (var prop in properties)\n{\n    Console.WriteLine($\"{prop.Name} - {prop.PropertyType.Name}\");\n}",
+    "description": "Field/property introspection and metadata access",
+    "tags": ["fields", "metadata", "properties", "reflection", "entitytype"],
+    "complexity": "high",
+    "confidence": 0.7
+  },
+
+  "data_binding": {
+    "pattern": "Set DataGrid1.DataSource = rs\nDataGrid1.Refresh\n\n' Or with Data control\nData1.RecordSource = \"SELECT * FROM Customers\"\nData1.Refresh\nText1.DataSource = Data1\nText1.DataField = \"CustomerName\"",
+    "csharp_equivalent": "// Windows Forms DataGridView\ndataGridView1.DataSource = context.Customers.ToList();\n\n// Or with BindingSource\nbindingSource1.DataSource = context.Customers.ToList();\ndataGridView1.DataSource = bindingSource1;\n\n// TextBox data binding\ntextBox1.DataBindings.Add(\"Text\", bindingSource1, \"CustomerName\");",
+    "description": "Data binding to UI controls",
+    "tags": ["databinding", "datagridview", "bindingsource", "datasource"],
+    "complexity": "medium",
+    "confidence": 0.9
+  },
+
+  "connection_pooling": {
+    "pattern": "' VB6 doesn't have explicit connection pooling\n' Connections were typically opened/closed for each operation\nconn.Open\n' Do work\nconn.Close",
+    "csharp_equivalent": "// Entity Framework automatically manages connection pooling\nusing (var context = new ApplicationDbContext())\n{\n    // Connection automatically pooled and managed\n    var customers = context.Customers.ToList();\n}\n\n// Connection string for pooling configuration:\n// \"Server=server;Database=db;Pooling=true;Min Pool Size=5;Max Pool Size=100;\"",
+    "description": "Connection pooling is automatic in Entity Framework",
+    "tags": ["connectionpooling", "automatic", "performance", "dbcontext"],
+    "complexity": "low",
+    "confidence": 1.0
+  },
+
+  "async_operations": {
+    "pattern": "' VB6 operations were synchronous\nrs.Open \"SELECT * FROM LargeTable\", conn\n' This blocks until complete",
+    "csharp_equivalent": "// Entity Framework supports async operations\npublic async Task<List<Customer>> GetCustomersAsync()\n{\n    using (var context = new ApplicationDbContext())\n    {\n        return await context.Customers.ToListAsync();\n    }\n}\n\n// Usage:\nvar customers = await GetCustomersAsync();",
+    "description": "Converting synchronous operations to async/await pattern",
+    "tags": ["async", "await", "tolistasync", "performance", "nonblocking"],
+    "complexity": "medium",
+    "confidence": 1.0
+  }
+}
