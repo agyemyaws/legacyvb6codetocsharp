@@ -1,0 +1,120 @@
+# VB6 to C# Translation Pipeline Configuration
+
+# Analysis Configuration
+analysis:
+  # Input directories to analyze
+  input_directories:
+    - "Data/Input/BMI"
+    - "Data/Input/Unified"
+  
+  # File types to include in analysis
+  file_extensions:
+    - ".vbp"  # Project files
+    - ".frm"  # Forms
+    - ".cls"  # Classes
+    - ".bas"  # Modules
+    - ".ctl"  # Controls
+    - ".pag"  # Property pages
+  
+  # Analysis options
+  options:
+    calculate_complexity: true
+    extract_dependencies: true
+    detect_external_deps: true
+    generate_metrics: true
+    create_translation_order: true
+
+# Translation Configuration
+translation:
+  # Translation batch size (files per batch)
+  batch_size: 5
+  
+  # Translation strategies
+  strategies:
+    handle_cycles: "interface_extraction"  # or "stub_creation"
+    dependency_approach: "bottom_up"       # or "top_down", "parallel"
+    external_deps: "wrapper_generation"    # or "direct_mapping"
+  
+  # Output configuration
+  output:
+    base_directory: "Data/Output"
+    create_solution: true
+    generate_project_files: true
+    include_documentation: true
+
+# External Dependencies Configuration
+external_dependencies:
+  # COM object mappings
+  com_mappings:
+    "ADODB.Connection": "System.Data.SqlClient.SqlConnection"
+    "ADODB.Recordset": "System.Data.DataSet"
+    "Scripting.FileSystemObject": "System.IO.File"
+  
+  # DLL mappings
+  dll_mappings:
+    "kernel32.dll": "System.Runtime.InteropServices"
+    "user32.dll": "System.Windows.Forms"
+    "advapi32.dll": "System.Security"
+  
+  # OCX control mappings
+  ocx_mappings:
+    "MSFlexGrid": "System.Windows.Forms.DataGridView"
+    "CommonDialog": "System.Windows.Forms.OpenFileDialog"
+
+# Code Generation Settings
+code_generation:
+  # C# project settings
+  target_framework: "net6.0"
+  language_version: "10.0"
+  
+  # Naming conventions
+  naming:
+    classes: "PascalCase"
+    methods: "PascalCase"
+    properties: "PascalCase"
+    fields: "camelCase"
+    parameters: "camelCase"
+    
+  # Code style preferences
+  style:
+    use_var: false
+    prefer_explicit_types: true
+    use_file_scoped_namespaces: true
+    add_nullable_context: true
+
+# Validation Settings
+validation:
+  # Compilation validation
+  compile_generated_code: true
+  target_warnings_as_errors: false
+  
+  # Functional validation
+  run_unit_tests: true
+  validate_business_logic: true
+  
+  # Integration validation
+  test_database_connections: true
+  validate_ui_functionality: true
+
+# Logging Configuration
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  log_to_file: true
+  log_file: "logs/pipeline.log"
+  include_timestamps: true
+  
+# Model Configuration
+model:
+  # Default provider (ollama or claude)
+  provider: "ollama"
+  
+  # Model settings for different tasks
+  models:
+    analysis: "codellama:latest"
+    translation: "codellama:latest"
+    validation: "codellama:latest"
+  
+  # Generation parameters
+  temperature: 0.2
+  max_tokens: 4000
+  timeout: 120

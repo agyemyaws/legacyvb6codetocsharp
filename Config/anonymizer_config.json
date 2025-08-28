@@ -1,0 +1,16 @@
+{
+  "company": [
+    "HP Inc.",
+    "AcmeCorp",
+    "TechSolutions"
+  ],
+  "domain": [
+    "internal",
+    "production",
+    "test"
+  ],
+  "custom_patterns": [
+    "password\\s*=\\s*\\w+",
+    "api_key\\s*=\\s*\\w+"
+  ]
+}
