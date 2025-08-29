@@ -90,7 +90,7 @@ GENERATE BOTH: Main form class AND designer class as separate, properly structur
 
 {source_code}
 
-Output the complete C# translation using this EXACT format:
+CRITICAL: You MUST output the complete C# translation using this EXACT format with the HTML comment delimiters. DO NOT omit or modify these delimiters:
 
 <!-- FORM_CLASS_START -->
 using System;
@@ -158,7 +158,9 @@ REQUIREMENTS:
 - Preserve all VB6 functionality with modern C# equivalents
 - Use proper WinForms designer patterns
 - Include comprehensive error handling
-- Follow C# naming conventions (PascalCase methods, camelCase fields)""",
+- Follow C# naming conventions (PascalCase methods, camelCase fields)
+
+MANDATORY: Your response MUST include BOTH the <!-- FORM_CLASS_START --> and <!-- DESIGNER_CLASS_START --> sections with the exact delimiters shown above. The parsing system depends on these delimiters to separate the form class from the designer class. DO NOT use code blocks (```) or any other formatting - just the HTML comment delimiters.""",
     
     description="Optimized VB6 to C# WinForms translation with CodeLlama 6.7B specific enhancements"
             ),

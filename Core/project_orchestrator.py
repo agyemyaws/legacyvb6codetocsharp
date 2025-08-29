@@ -102,7 +102,14 @@ class ProjectOrchestrator:
         )
         self.dependency_resolver = DependencyResolver()
         
-        # self.evaluator = TranslationEvaluator()
+        # Initialize evaluator if available
+        try:
+            self.evaluator = TranslationEvaluator()
+            self.evaluation_available = True
+        except Exception as e:
+            self.logger.warning(f"TranslationEvaluator not available: {e}")
+            self.evaluator = None
+            self.evaluation_available = False
         
         # Workflow state
         self.current_project: Optional[VB6Project] = None
@@ -197,7 +204,7 @@ class ProjectOrchestrator:
                 validation_results = {
                     "skipped": True, 
                     "reason": "Evaluator not available or validation disabled",
-                    "evaluator_available": EVALUATION_AVAILABLE,
+                    "evaluator_available": self.evaluation_available,
                     "validation_enabled": self.config.get('enable_validation', False)
                 }
             
