@@ -52,14 +52,16 @@ def get_model_preset(preset_name: str, provider: str = "ollama") -> dict:
             "top_p": 0.9,
             "top_k": 40,
             "repeat_penalty": 1.1,
-            "max_tokens": 8000
+            "max_tokens": 12000,
+            "num-predict": 8192
         },
         "translation": {
             "temperature": 0.3,
             "top_p": 0.9,
             "top_k": 40,
             "repeat_penalty": 1.1,
-            "max_tokens": 8000
+            "max_tokens": 12000,
+            "num-predict": 8192
         }
     }
     
@@ -67,15 +69,15 @@ def get_model_preset(preset_name: str, provider: str = "ollama") -> dict:
     claude_presets = {
         "code_generation": {
             "temperature": 0.2,
-            "max_tokens": 8000  # Increased for complex code generation
+            "max_tokens": 200000  # Use Claude's maximum for unrestricted generation
         },
         "translation": {
             "temperature": 0.3,
-            "max_tokens": 8000  # Increased to prevent truncation of large forms
+            "max_tokens": 200000  # Use Claude's maximum for unrestricted generation
         },
         "form_translation": {
             "temperature": 0.2,
-            "max_tokens": 12000  # Even higher for complex forms with many controls
+            "max_tokens": 200000  # Use Claude's maximum for unrestricted generation
         }
     }
     
