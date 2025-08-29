@@ -24,73 +24,98 @@ class PromptManager:
     def _initialize_prompts(self) -> Dict[str, TranslationPrompt]:
         """Initialize all available prompts"""
         return {
-            "vb6_to_winforms": TranslationPrompt(
-    system_prompt="""You are an expert VB6 to C# WinForms translator specializing in enterprise-grade code conversion. Convert VB6 forms to modern, production-ready C# WinForms applications.
+                "vb6_to_winforms": TranslationPrompt(
+    system_prompt="""You are an expert VB6 to C# WinForms translator. Convert VB6 forms to production-ready C# WinForms applications.
 
-CRITICAL TRANSLATION RULES:
+CONTROL MAPPINGS:
+- TextBox -> TextBox (Text, MaxLength, Multiline, ScrollBars, ReadOnly)
+- Label -> Label (Caption->Text, Alignment->TextAlign, AutoSize)
+- CommandButton -> Button (Caption->Text, handle Click events)
+- ListBox -> ListBox (preserve List, ListIndex, ItemData properties)
+- ComboBox -> ComboBox (Style->DropDownStyle, List, ListIndex, Text)
+- CheckBox -> CheckBox (Caption->Text, Value->Checked, handle tristate)
+- OptionButton -> RadioButton (Caption->Text, Value->Checked, GroupBox grouping)
+- Frame -> GroupBox (Caption->Text, container for RadioButtons)
+- PictureBox -> PictureBox (Picture->Image, SizeMode, handle image formats)
+- Image -> PictureBox (Picture->Image, Stretch->SizeMode)
+- Timer -> Timer (Interval, Enabled properties)
+- VScrollBar/HScrollBar -> VScrollBar/HScrollBar (Min, Max, Value, SmallChange, LargeChange)
+- Grid/MSFlexGrid -> DataGridView (Rows, Cols, Text properties, complex data binding)
+- Shape -> Panel (with custom Paint event for drawing shapes)
+- Line -> Panel (1px height/width with BackColor)
+- CommonDialog -> OpenFileDialog/SaveFileDialog/ColorDialog/FontDialog
+- Menu -> MenuStrip (convert menu structure)
 
-1. CONTROL MAPPINGS (Handle VB6-specific properties):
-   - TextBox -> System.Windows.Forms.TextBox (Map Text, MaxLength, MultiLine, ScrollBars)
-   - Label -> System.Windows.Forms.Label (Caption->Text, Alignment->TextAlign)
-   - CommandButton -> System.Windows.Forms.Button (Caption->Text, handle Click events)
-   - ListBox -> System.Windows.Forms.ListBox (preserve ItemData handling)
-   - ComboBox -> System.Windows.Forms.ComboBox (Style->DropDownStyle conversion)
-   - CheckBox -> System.Windows.Forms.CheckBox (Value->Checked, handle tristate)
-   - OptionButton -> System.Windows.Forms.RadioButton (Value->Checked, GroupBox grouping)
-   - Frame -> System.Windows.Forms.GroupBox (Caption->Text, container logic)
-   - PictureBox -> System.Windows.Forms.PictureBox (Picture->Image, handle formats)
-   - Timer -> System.Windows.Forms.Timer (Interval, Enabled properties)
-   - VScrollBar/HScrollBar -> System.Windows.Forms.VScrollBar/HScrollBar
-   - MSFlexGrid/Grid -> System.Windows.Forms.DataGridView (complex data binding)
+PROPERTY MAPPINGS:
+Layout: Left->Left, Top->Top, Width->Width, Height->Height
+Appearance: Caption->Text, BackColor->BackColor, ForeColor->ForeColor, Font->Font
+Behavior: Visible->Visible, Enabled->Enabled, TabIndex->TabIndex, TabStop->TabStop
+Text: Text->Text, Alignment->TextAlign, MultiLine->Multiline, ScrollBars->ScrollBars
+Special: Picture->Image, BorderStyle->BorderStyle, Value->Checked/Value, Tag->Tag
 
-2. VB6-SPECIFIC CONVERSIONS:
-   - Variant types -> object (with proper null checks)
-   - Control arrays -> List<Control> or individual controls with indexed naming
-   - Late binding -> explicit interface casting with error handling
-   - Collection indexing: VB6 1-based -> C# 0-based (critical!)
-   - Form_Load -> Form.Load event handler
-   - Form_Unload -> Form.FormClosed event handler
-   - Default properties: Text1.Text vs Text1 (VB6 implicit default)
+EVENT MAPPINGS:
+- Click -> Click
+- DblClick -> DoubleClick  
+- Change -> TextChanged (TextBox) or SelectedIndexChanged (ComboBox/ListBox)
+- KeyPress -> KeyPress
+- KeyDown/KeyUp -> KeyDown/KeyUp
+- MouseDown/MouseUp/MouseMove -> MouseDown/MouseUp/MouseMove
+- GotFocus/LostFocus -> Enter/Leave
+- Load -> Load (Form_Load -> Form1_Load)
+- Unload -> FormClosing (Form_Unload -> Form1_FormClosing)
+- QueryUnload -> FormClosing (with e.Cancel capability)
+- Resize -> Resize
+- Paint -> Paint
 
-3. EVENT HANDLER MAPPINGS:
-   - Click -> Click (preserve sender/EventArgs pattern)
-   - DblClick -> DoubleClick
-   - Change -> TextChanged (TextBox) or SelectedIndexChanged (ComboBox/ListBox)
-   - KeyPress -> KeyPress (handle KeyPressEventArgs)
-   - GotFocus/LostFocus -> Enter/Leave
-   - Form_QueryUnload -> FormClosing (with cancel capability)
+VB6 SYNTAX CONVERSIONS:
+Variables: Dim x As String -> string x, Dim x As Integer -> int x, Dim x As Variant -> object x
+Control Flow: If...Then...End If -> if(...){}, For...Next -> for(){}, While...Wend -> while(){}
+Functions: MsgBox -> MessageBox.Show, InputBox -> Microsoft.VisualBasic.Interaction.InputBox
+Objects: Set obj = Nothing -> obj = null, Set obj = CreateObject() -> obj = new Object()
+Collections: For Each...Next -> foreach(){}, Collection -> List<T> or Dictionary<K,V>
+Arrays: Array(0 To 10) -> new Type[11] (handle 1-based vs 0-based indexing)
+Strings: & operator -> + or string interpolation, Mid/Left/Right -> Substring methods
 
-4. PROPERTY MAPPINGS:
-   - Caption -> Text (Forms, Labels, Buttons, GroupBox)
-   - Left/Top/Width/Height -> Location.X/Y, Size.Width/Height
-   - Visible -> Visible
-   - Enabled -> Enabled (handle container propagation)
-   - BackColor/ForeColor -> BackColor/ForeColor (Color conversion)
-   - TabIndex -> TabIndex, TabStop -> TabStop
-   - BorderStyle -> BorderStyle (enum conversion)
+CONTROL ARRAYS (VB6 specific):
+Convert Command1(0), Command1(1) to button1, button2 with shared event handlers:
+```csharp
+private void ButtonArray_Click(object sender, EventArgs e)
+{
+    Button btn = sender as Button;
+    int index = int.Parse(btn.Tag.ToString());
+    // Handle based on index
+}
+```
 
-5. MODERN C# PATTERNS:
-   - Use 'using' statements for proper disposal
-   - Implement IDisposable pattern in forms
-   - Apply null-conditional operators (?.) where appropriate
-   - Use string interpolation over concatenation
-   - Proper exception handling (try-catch blocks)
-   - Use var for obvious types, explicit types for clarity
+VB6 SPECIAL CASES:
+- Default properties: Text1 (VB6) -> textBox1.Text (C#)
+- Variant handling: Use object with proper null checks and type casting
+- Late binding: Convert to explicit interfaces with try-catch
+- Error handling: On Error Resume Next -> try-catch blocks
+- DoEvents -> Application.DoEvents()
+- App.Path -> Application.StartupPath
+- Form references: Form1.Show -> form1.Show() (instance-based)
 
-6. WINFORMS BEST PRACTICES:
-   - Proper InitializeComponent() structure
-   - SuspendLayout()/ResumeLayout() for performance
-   - Correct control parent-child relationships
-   - Proper resource disposal in Dispose() method
-   - Thread-safe control access using Invoke/BeginInvoke
+MODERN C# PATTERNS:
+- Use proper disposal: using statements, IDisposable implementation
+- Null-conditional operators: obj?.Method()
+- String interpolation: $"Hello {name}" instead of "Hello " + name
+- var for obvious types, explicit types for clarity
+- Proper exception handling with specific catch blocks
+- Async/await for long-running operations where appropriate
 
-GENERATE BOTH: Main form class AND designer class as separate, properly structured partial classes.""",
+WINFORMS BEST PRACTICES:
+- SuspendLayout()/ResumeLayout() for performance during initialization
+- Proper parent-child control relationships
+- Thread-safe control access using Control.Invoke()
+- Correct anchoring and docking for responsive layouts
+- Resource management in Dispose() method""",
     
-    user_template="""Convert this VB6 form to C# WinForms .NET:
+    user_template="""Convert the following VB6 form to C# WinForms .NET:
 
 {source_code}
 
-CRITICAL: You MUST output the complete C# translation using this EXACT format with the HTML comment delimiters. DO NOT omit or modify these delimiters:
+Output the complete C# translation using this EXACT format:
 
 <!-- FORM_CLASS_START -->
 using System;
@@ -98,18 +123,19 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Windows.Forms;
 
-namespace YourNamespace
+namespace WindowsFormsApp
 {{
-    public partial class [FormName] : Form
+    public partial class Form1 : Form
     {{
-        public [FormName]()
+        public Form1()
         {{
             InitializeComponent();
         }}
 
-        // Event handlers and custom methods here
-        // Convert VB6 event handlers to C# pattern
-        // Handle VB6-specific logic (Variant types, control arrays, etc.)
+        // Convert all VB6 event handlers here
+        // Use proper C# event handler signature: (object sender, EventArgs e)
+        // Handle VB6-specific logic (control arrays, Variant types, etc.)
+        // Include Form_Load -> Form1_Load, Form_Unload -> Form1_FormClosing
         
         protected override void Dispose(bool disposing)
         {{
@@ -128,22 +154,31 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Windows.Forms;
 
-namespace YourNamespace
+namespace WindowsFormsApp
 {{
-    partial class [FormName]
+    partial class Form1
     {{
         private IContainer components = null;
         
-        // Control declarations here
-        // Convert all VB6 controls to proper C# control declarations
+        // Declare all controls here using C# naming conventions
+        // Text1 -> private TextBox textBox1;
+        // Command1 -> private Button button1;
         
         private void InitializeComponent()
         {{
             this.SuspendLayout();
             
-            // Control initialization code here
-            // Set all properties, event handlers, and layout
-            // Handle VB6-specific property mappings
+            // Initialize all controls with proper property mappings
+            // Set Location, Size, Text, and other properties
+            // Wire up event handlers
+            // Add controls to form: this.Controls.Add(controlName);
+            
+            // Form properties
+            this.AutoScaleDimensions = new SizeF(6F, 13F);
+            this.AutoScaleMode = AutoScaleMode.Font;
+            this.ClientSize = new Size(800, 600); // Set from VB6 form size
+            this.Name = "Form1";
+            this.Text = "Form1"; // Set from VB6 Caption
             
             this.ResumeLayout(false);
             this.PerformLayout();
@@ -162,8 +197,8 @@ REQUIREMENTS:
 
 MANDATORY: Your response MUST include BOTH the <!-- FORM_CLASS_START --> and <!-- DESIGNER_CLASS_START --> sections with the exact delimiters shown above. The parsing system depends on these delimiters to separate the form class from the designer class. DO NOT use code blocks (```) or any other formatting - just the HTML comment delimiters.""",
     
-    description="Optimized VB6 to C# WinForms translation with CodeLlama 6.7B specific enhancements"
-            ),
+    description="Optimal CodeLlama 13B prompt for VB6 to C# WinForms translation"
+),
             "vb6_class_to_csharp": TranslationPrompt(
     system_prompt="""You are an expert VB6 to C# class translator specializing in enterprise-grade business logic conversion. Convert VB6 class modules (.cls) to modern, production-ready C# classes with proper encapsulation and type safety.
 
