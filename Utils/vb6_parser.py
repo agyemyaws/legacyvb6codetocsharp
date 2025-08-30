@@ -55,6 +55,7 @@ class VB6ParsedFile:
     external_references: Set[str] = field(default_factory=set)
     imports: List[str] = field(default_factory=list)
     attributes: Dict[str, str] = field(default_factory=dict)
+    complexity_score: int = 0
 
 
 class VB6Parser:
@@ -190,6 +191,9 @@ class VB6Parser:
             self._extract_attributes(parsed_file, content)
             self._extract_dependencies(parsed_file, content)
             self._extract_external_references(parsed_file, content)
+            
+            # Calculate complexity
+            parsed_file.complexity_score = self._calculate_complexity(parsed_file)
             
             return parsed_file
             
@@ -428,6 +432,33 @@ class VB6Parser:
         
         parsed_file.external_references = external_refs
     
+    def _calculate_complexity(self, parsed_file: VB6ParsedFile) -> int:
+        """Calculate cyclomatic complexity from parsed VB6 methods"""
+        total_complexity = 1  # Base complexity for the file
+        
+        for method in parsed_file.methods:
+            method_complexity = 1  # Base complexity for each method
+            
+            # Count decision points in method body
+            decision_patterns = [
+                r'\bIf\b',
+                r'\bElseIf\b', 
+                r'\bFor\b',
+                r'\bWhile\b',
+                r'\bDo\b',
+                r'\bSelect\s+Case\b',
+                r'\bCase\b',
+                r'\bOn\s+Error\b'
+            ]
+            
+            for pattern in decision_patterns:
+                matches = re.findall(pattern, method.body, re.IGNORECASE)
+                method_complexity += len(matches)
+            
+            total_complexity += method_complexity
+        
+        return total_complexity
+    
     def get_file_summary(self, parsed_file: VB6ParsedFile) -> Dict[str, Any]:
         """Generate a summary of the parsed file"""
         return {
@@ -436,6 +467,7 @@ class VB6Parser:
             'variables_count': len(parsed_file.variables),
             'methods_count': len(parsed_file.methods),
             'controls_count': len(parsed_file.controls),
+            'complexity_score': parsed_file.complexity_score,
             'dependencies': list(parsed_file.dependencies),
             'external_references': list(parsed_file.external_references),
             'attributes': parsed_file.attributes,
