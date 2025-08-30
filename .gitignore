@@ -173,6 +173,7 @@ Thumbs.db
 Data/Input/*/
 Data/Output/*/
 !Data/Output/BMI_*/  # Keep BMI examples
+!Data/Input/BMI
 
 # Model cache
 .cache/
