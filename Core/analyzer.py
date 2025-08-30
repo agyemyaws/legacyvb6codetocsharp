@@ -255,7 +255,7 @@ class VB6Analyzer:
             if parsed_file:
                 dependencies = parsed_file.dependencies
                 external_deps = parsed_file.external_references
-                complexity = len(parsed_file.methods) + 1  # Base + methods count
+                complexity = parsed_file.complexity_score
                 functions_count = len([m for m in parsed_file.methods if m.method_type in ['Function', 'Sub']])
                 classes_count = 1 if parsed_file.file_type == 'class' else 0
                 
@@ -274,7 +274,7 @@ class VB6Analyzer:
         functions_count = 0
         classes_count = 0
         
-        # Count decision points for complexity
+        # Count decision points for complexity (same patterns as VB6Parser method)
         decision_patterns = [
             r'\bIf\b',
             r'\bElseIf\b', 
