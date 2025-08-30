@@ -3,19 +3,19 @@ VB6 Code Analyzer
 Analyzes VB6 projects to extract dependencies, metrics, and determine translation order.
 """
 
+import logging
 import os
 import re
 import sys
+from collections import defaultdict
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Set, Tuple, Optional, Any
-from dataclasses import dataclass, field
-from collections import defaultdict
-import logging
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from Utils.vb6_parser import VB6Parser
 from Utils.logging_config import setup_logging
+from Utils.vb6_parser import VB6Parser, VB6ParsedFile
 
 
 @dataclass
@@ -31,6 +31,7 @@ class VB6File:
     functions_count: int = 0
     classes_count: int = 0
     controls_count: int = 0  # For forms
+    parsed_data: Optional[VB6ParsedFile] = None  # Parsed file data for translation
     
     def __post_init__(self):
         """Ensure dependencies are sets"""
@@ -231,7 +232,7 @@ class VB6Analyzer:
                 content = file.read()
             
             # Analyze file content using VB6Parser with regex fallback
-            dependencies, complexity, functions_count, classes_count, external_deps = self._analyze_file_content(file_path, content)
+            dependencies, complexity, functions_count, classes_count, external_deps, parsed_data = self._analyze_file_content(file_path, content)
             
             # Set all metrics from analysis
             vb6_file.dependencies = dependencies
@@ -240,6 +241,7 @@ class VB6Analyzer:
             vb6_file.functions_count = functions_count
             vb6_file.classes_count = classes_count
             vb6_file.lines_of_code = len(content.splitlines())
+            vb6_file.parsed_data = parsed_data  # Store parsed data for translation
             
             return vb6_file
             
@@ -247,7 +249,7 @@ class VB6Analyzer:
             self.logger.error(f"Error analyzing file {file_path}: {e}")
             return None
     
-    def _analyze_file_content(self, file_path: Path, content: str) -> Tuple[Set[str], int, int, int, Set[str]]:
+    def _analyze_file_content(self, file_path: Path, content: str) -> Tuple[Set[str], int, int, int, Set[str], Optional[VB6ParsedFile]]:
         """Analyze file content using VB6Parser with regex fallback"""
         try:
             # Use the sophisticated parser
@@ -259,12 +261,13 @@ class VB6Analyzer:
                 functions_count = len([m for m in parsed_file.methods if m.method_type in ['Function', 'Sub']])
                 classes_count = 1 if parsed_file.file_type == 'class' else 0
                 
-                return dependencies, complexity, functions_count, classes_count, external_deps
+                return dependencies, complexity, functions_count, classes_count, external_deps, parsed_file
         except Exception as e:
             self.logger.warning(f"Parser failed for {file_path}, using fallback: {e}")
         
         # Fallback to regex approach
-        return self._analyze_with_regex(content)
+        fallback_result = self._analyze_with_regex(content)
+        return fallback_result + (None,)  # Add None for parsed_data
     
     def _analyze_with_regex(self, content: str) -> Tuple[Set[str], int, int, int, Set[str]]:
         """Fallback regex-based analysis for dependencies, complexity, functions, and external deps"""
