@@ -14,42 +14,30 @@ This orchestrator:
 import logging
 import sys
 import time
-from pathlib import Path
-from typing import Dict, List, Optional, Any, Union, Tuple
+from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from enum import Enum
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from collections import Counter
-import json
+from pathlib import Path
+from typing import Dict, List, Optional, Any
 
 # Add project root to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
 
-from Core.analyzer import VB6Analyzer, VB6Project, VB6File
-from Translation.translator_orchestrator import TranslationOrchestrator, ComponentType, VB6Component
-from Utils.dependency_resolver import DependencyResolver
-from Utils.vb6_parser import VB6Parser
+from Core.analyzer import VB6Analyzer, VB6Project
 from Evaluation.evaluator import TranslationEvaluator
+from settings import get_settings
+from Translation.translator_orchestrator import TranslationOrchestrator
 
 
 class TranslationPhase(Enum):
     """Translation workflow phases"""
     ANALYSIS = "analysis"
-    PLANNING = "planning"
     TRANSLATION = "translation"
     VALIDATION = "validation"
     OUTPUT_GENERATION = "output_generation"
     COMPLETED = "completed"
     FAILED = "failed"
-
-
-@dataclass
-class TranslationPlan:
-    """Represents a translation execution plan"""
-    phases: List[TranslationPhase] = field(default_factory=list)
-    agent_assignments: Dict[str, str] = field(default_factory=dict)  # component -> agent
-    translation_order: List[str] = field(default_factory=list)
-    parallel_groups: List[List[str]] = field(default_factory=list)
 
 
 @dataclass
@@ -74,9 +62,7 @@ class TranslationResult:
     project_name: str
     output_path: Path
     progress: TranslationProgress
-    plan: TranslationPlan
     translated_files: Dict[str, Path] = field(default_factory=dict)
-    generated_projects: List[Path] = field(default_factory=list)
     validation_results: Dict[str, Any] = field(default_factory=dict)
     metrics: Dict[str, Any] = field(default_factory=dict)
     summary: str = ""
@@ -89,25 +75,20 @@ class ProjectOrchestrator:
     Orchestrates the entire translation workflow from analysis to final output.
     """
     
-    def __init__(self, config: Optional[Dict[str, Any]] = None, progress_callback=None):
+    def __init__(self):
         self.logger = logging.getLogger(__name__)
-        self.config = config or {}
-        self.progress_callback = progress_callback
+        self.settings = get_settings()
         
         # Initialize core components
         self.analyzer = VB6Analyzer()
         self.translation_orchestrator = TranslationOrchestrator(
-            max_workers=self.config.get('max_workers', 3),
-            max_retries=self.config.get('max_retries', 2)
+            max_workers=self.settings.MAX_WORKERS,
+            max_retries=self.settings.MAX_RETRIES
         )
-        self.dependency_resolver = DependencyResolver()
         
-        # self.evaluator = TranslationEvaluator()
-        
-        # Workflow state
-        self.current_project: Optional[VB6Project] = None
-        self.current_plan: Optional[TranslationPlan] = None
+        # Note: evaluator is initialized on demand when validation is enabled
         self.current_progress: Optional[TranslationProgress] = None
+        
     
     def translate_project(self, vb6_project_path: str, output_path: str = None) -> TranslationResult:
         """
@@ -141,7 +122,6 @@ class ProjectOrchestrator:
             # Phase 1: Analysis
             self.logger.info("Phase 1: Analyzing VB6 project structure")
             self.current_progress.current_phase = TranslationPhase.ANALYSIS
-            self._report_progress("Starting project analysis")
             phase_start = time.time()
             
             vb6_project = self._analyze_project(project_path)
@@ -154,42 +134,26 @@ class ProjectOrchestrator:
             self.current_progress.phase_times['analysis'] = analysis_time
             self.logger.info(f"⏱️  Analysis completed in {analysis_time:.2f} seconds")
             self.logger.info(f"📊 Found {len(vb6_project.files)} components: {dict(Counter(f.file_type for f in vb6_project.files.values()))}")
-            self._report_progress(f"Analysis complete: {len(vb6_project.files)} components found")
+            self.logger.info(f"📋 Translation order: {' → '.join(vb6_project.translation_order)}")
             
-            # Phase 2: Planning
-            self.logger.info("Phase 2: Planning translation strategy")
-            self.current_progress.current_phase = TranslationPhase.PLANNING
-            self._report_progress("Creating translation plan")
-            phase_start = time.time()
-            
-            translation_plan = self._create_translation_plan(vb6_project)
-            self.current_plan = translation_plan
-            planning_time = time.time() - phase_start
-            self.current_progress.phase_times['planning'] = planning_time
-            self.logger.info(f"⏱️  Planning completed in {planning_time:.2f} seconds")
-            self.logger.info(f"📋 Plan: {translation_plan.complexity_score:.1f} complexity, {translation_plan.estimated_duration:.1f}min estimated")
-            self._report_progress("Translation plan created using modernization approach")
-            
-            # Phase 3: Translation
-            self.logger.info("Phase 3: Executing translation")
+            # Phase 2: Translation 
+            self.logger.info("Phase 2: Executing translation")
             self.current_progress.current_phase = TranslationPhase.TRANSLATION
-            self._report_progress("Starting component translation")
             phase_start = time.time()
             
-            translation_results = self._execute_translation(vb6_project, translation_plan, output_dir)
+            translation_results = self._execute_translation(vb6_project, output_dir)
             translation_time = time.time() - phase_start
             self.current_progress.phase_times['translation'] = translation_time
             self.logger.info(f"⏱️  Translation completed in {translation_time:.2f} seconds")
             self.logger.info(f"📊 Success: {self.current_progress.completed_components}/{self.current_progress.total_components} components")
             self.logger.info(f"🔄 Rate: {self.current_progress.completed_components/max(translation_time, 1):.2f} components/second")
-            self._report_progress(f"Translation completed: {len(translation_results)} files generated")
             
-            # Phase 4: Validation (optional - can be enabled later)
-            self.logger.info("Phase 4: Validation phase")
+            # Phase 3: Validation (optional - can be enabled later)
+            self.logger.info("Phase 3: Validation phase")
             self.current_progress.current_phase = TranslationPhase.VALIDATION
             phase_start = time.time()
             
-            if self.evaluator and self.config.get('enable_validation', False):
+            if hasattr(self, 'evaluator') and self.settings.ENABLE_VALIDATION:
                 self.logger.info("Running translation validation")
                 validation_results = self._validate_translation(translation_results, output_dir)
             else:
@@ -197,26 +161,24 @@ class ProjectOrchestrator:
                 validation_results = {
                     "skipped": True, 
                     "reason": "Evaluator not available or validation disabled",
-                    "evaluator_available": EVALUATION_AVAILABLE,
-                    "validation_enabled": self.config.get('enable_validation', False)
+                    "evaluator_available": hasattr(self, 'evaluator'),
+                    "validation_enabled": self.settings.ENABLE_VALIDATION
                 }
             
             validation_time = time.time() - phase_start
             self.current_progress.phase_times['validation'] = validation_time
             self.logger.info(f"⏱️  Validation completed in {validation_time:.2f} seconds")
             
-            # Phase 5: Output Generation
-            self.logger.info("Phase 5: Generating final output")
+            # Phase 4: Finalization (no additional file generation)
+            self.logger.info("Phase 4: Finalizing translation")
             self.current_progress.current_phase = TranslationPhase.OUTPUT_GENERATION
-            self._report_progress("Generating project files and documentation")
             phase_start = time.time()
             
-            final_output = self._generate_final_output(translation_results, output_dir)
+            # Translation is complete - files are already saved by TranslationOrchestrator
             output_time = time.time() - phase_start
             self.current_progress.phase_times['output_generation'] = output_time
-            self.logger.info(f"⏱️  Output generation completed in {output_time:.2f} seconds")
-            self.logger.info(f"📦 Generated {len(final_output)} project files")
-            self._report_progress(f"Output generation complete: {len(final_output)} project files created")
+            self.logger.info(f"⏱️  Translation finalized in {output_time:.2f} seconds")
+            self.logger.info(f"📁 Translated files available in: {output_dir}")
             
             # Complete
             self.current_progress.current_phase = TranslationPhase.COMPLETED
@@ -224,16 +186,13 @@ class ProjectOrchestrator:
             
             # Log comprehensive timing summary
             self._log_timing_summary()
-            self._report_progress("Translation workflow completed successfully")
             
             return TranslationResult(
                 success=True,
                 project_name=vb6_project.name,
                 output_path=output_dir,
                 progress=self.current_progress,
-                plan=translation_plan,
                 translated_files=translation_results,
-                generated_projects=final_output,
                 validation_results=validation_results,
                 metrics=self._calculate_metrics(),
                 summary=self._generate_summary()
@@ -263,8 +222,8 @@ class ProjectOrchestrator:
             
             if vb6_project:
                 self.logger.info(f"Analyzed project: {vb6_project.name}")
-                self.logger.info(f"  Files: {len(vb6_project.files)}")
-                self.logger.info(f"  External dependencies: {len(vb6_project.external_dependencies)}")
+                self.logger.info(f"Files: {len(vb6_project.files)}")
+                self.logger.info(f"External dependencies: {len(vb6_project.external_dependencies)}")
                 
                 # Log file breakdown
                 file_types = {}
@@ -280,260 +239,73 @@ class ProjectOrchestrator:
             self.logger.error(f"Project analysis failed: {e}")
             return None
     
-    def _create_translation_plan(self, vb6_project: VB6Project) -> TranslationPlan:
-        """Create an optimal translation plan based on project analysis using modernization approach"""
-        
-        plan = TranslationPlan()
-        
-        # Calculate complexity score
-        total_complexity = sum(file.complexity_score for file in vb6_project.files.values())
-        total_files = len(vb6_project.files)
-        plan.complexity_score = total_complexity / max(total_files, 1)
-        
-        # Note: Translation order will be determined by the translation orchestrator
-        # based on proper dependency resolution during execution
-        plan.translation_order = list(vb6_project.files.keys())  # Initial order, will be refined by translator
-        
-        # Assign agents based on file types
-        plan.agent_assignments = self._assign_agents(vb6_project)
-        
-        # Identify risk factors
-        plan.risk_factors = self._identify_risk_factors(vb6_project)
-        
-        # Create parallel execution groups (using modernization approach)
-        plan.parallel_groups = self._create_parallel_groups(vb6_project)
-        
-        # Estimate duration (using modernization approach)
-        plan.estimated_duration = self._estimate_duration(vb6_project)
-        
-        # Set standard phases for modernization
-        plan.phases = [
-            TranslationPhase.ANALYSIS,
-            TranslationPhase.PLANNING,
-            TranslationPhase.TRANSLATION,
-            TranslationPhase.VALIDATION,
-            TranslationPhase.OUTPUT_GENERATION
-        ]
-        
-        self.logger.info(f"Created translation plan:")
-        self.logger.info(f"  Approach: Modern C# patterns and practices")
-        self.logger.info(f"  Complexity: {plan.complexity_score:.2f}")
-        self.logger.info(f"  Estimated duration: {plan.estimated_duration:.1f} minutes")
-        self.logger.info(f"  Risk factors: {len(plan.risk_factors)}")
-        self.logger.info(f"  Parallel groups: {len(plan.parallel_groups)}")
-        
-        return plan
+
     
-    def _assign_agents(self, vb6_project: VB6Project) -> Dict[str, str]:
-        """Assign appropriate translation agents to each component"""
+    def _execute_translation(self, vb6_project: VB6Project, output_dir: Path) -> Dict[str, Path]:
+        """Execute translation using analyzer's translation order with controlled concurrency"""
         
-        assignments = {}
+        self.logger.info("Converting VB6Project to their corresponding C# components")
         
-        for file_name, vb6_file in vb6_project.files.items():
-            if vb6_file.file_type == 'form':
-                assignments[file_name] = 'FormAgent'
-            elif vb6_file.file_type in ['module', 'class']:
-                # Check if it's a database module
-                if self._is_database_module(vb6_file):
-                    assignments[file_name] = 'DataAccessAgent'
-                else:
-                    assignments[file_name] = 'BusinessLogicAgent'
-            elif vb6_file.file_type == 'control':
-                assignments[file_name] = 'FormAgent'
-            else:
-                assignments[file_name] = 'BusinessLogicAgent'  # Default
+        # Use VB6Files from analyzer
+        components_map = vb6_project.files
         
-        return assignments
-    
-    def _is_database_module(self, vb6_file: VB6File) -> bool:
-        """Check if a VB6 file contains database-related code"""
+        # Initialize translation orchestrator's task tracking
+        self.translation_orchestrator.tasks = {}
+        self.translation_orchestrator.completed_translations = {}
+        self.translation_orchestrator.failed_translations = {}
         
-        # Check for database-related keywords in dependencies
-        db_keywords = {'ADODB', 'Database', 'Recordset', 'Connection', 'SQL'}
+        # Execute translation using analyzer's order with controlled concurrency
+        completed = set()
+        remaining = set(vb6_project.translation_order)
+        max_concurrent = self.settings.MAX_WORKERS
         
-        if any(keyword.lower() in dep.lower() for dep in vb6_file.external_dependencies for keyword in db_keywords):
-            return True
+        self.logger.info(f"Starting ordered translation with max {max_concurrent} concurrent workers")
         
-        # Check filename patterns
-        db_patterns = ['database', 'data', 'db', 'dao', 'ado']
-        if any(pattern in vb6_file.name.lower() for pattern in db_patterns):
-            return True
+        with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
+            while remaining:
+                # Find components ready for translation (dependencies satisfied)
+                ready = []
+                for comp_name in remaining:
+                    if comp_name not in components_map:
+                        continue
+                        
+                    vb6_file = components_map[comp_name]
+                    deps_satisfied = all(
+                        dep in completed or dep not in remaining
+                        for dep in vb6_file.dependencies
+                    )
+                    if deps_satisfied:
+                        ready.append(comp_name)
+                
+                if not ready:
+                    # No components ready - might indicate circular dependencies
+                    # Take the first few components anyway to make progress
+                    ready = list(remaining)[:max_concurrent]
+                    self.logger.warning("Possible circular dependencies detected, proceeding with remaining components")
+                
+                # Submit translation tasks (up to max_concurrent)
+                future_to_name = {}
+                for comp_name in ready[:max_concurrent]:
+                    vb6_file = components_map[comp_name]  # Get the VB6File object
+                    future = executor.submit(self.translation_orchestrator._translate_component, comp_name, vb6_file)
+                    future_to_name[future] = comp_name
+                    remaining.remove(comp_name)
+                    self.logger.info(f"Started translation of {comp_name}")
+                
+                # Wait for completion
+                for future in as_completed(future_to_name):
+                    comp_name = future_to_name[future]
+                    try:
+                        success = future.result()  # This will raise any exception that occurred
+                        if success:
+                            completed.add(comp_name)
+                            self.logger.info(f"✅ Completed translation of {comp_name}")
+                        else:
+                            self.logger.error(f"❌ Failed translation of {comp_name}")
+                    except Exception as e:
+                        self.logger.error(f"Translation failed for {comp_name}: {e}")
         
-        return False
-    
-    def _identify_risk_factors(self, vb6_project: VB6Project) -> List[str]:
-        """Identify potential risks in the translation process"""
-        
-        risks = []
-        
-        # Check for complex dependencies
-        if len(vb6_project.external_dependencies) > 10:
-            risks.append("High number of external dependencies")
-        
-        # Check for large files
-        large_files = [f for f in vb6_project.files.values() if f.lines_of_code > 1000]
-        if large_files:
-            risks.append(f"Large files detected ({len(large_files)} files > 1000 LOC)")
-        
-        # Check for complex forms
-        complex_forms = [f for f in vb6_project.files.values() 
-                        if f.file_type == 'form' and f.controls_count > 20]
-        if complex_forms:
-            risks.append(f"Complex forms with many controls ({len(complex_forms)} forms)")
-        
-        # Check for circular dependencies
-        try:
-            # This will raise an exception if circular dependencies exist
-            deps = {name: list(file.dependencies) for name, file in vb6_project.files.items()}
-            self.dependency_resolver.resolve_dependencies(deps)
-        except Exception:
-            risks.append("Circular dependencies detected")
-        
-        # Check for external COM components
-        com_deps = [dep for dep in vb6_project.external_dependencies 
-                   if any(ext in dep.lower() for ext in ['.ocx', '.dll', 'com', 'activex'])]
-        if com_deps:
-            risks.append(f"COM/ActiveX components detected ({len(com_deps)} components)")
-        
-        return risks
-    
-    def _create_parallel_groups(self, vb6_project: VB6Project) -> List[List[str]]:
-        """Create groups of files that can be translated in parallel using modernization approach"""
-        
-        # Use moderate parallelization - group by file type for optimal balance
-        # This allows parallel processing while maintaining good dependency handling
-        return self._group_by_file_type(vb6_project)
-    
-    def _group_by_dependency_levels(self, vb6_project: VB6Project) -> List[List[str]]:
-        """Group files by dependency levels for maximum parallelization"""
-        
-        # Build dependency graph
-        deps = {name: list(file.dependencies) for name, file in vb6_project.files.items()}
-        
-        # Create dependency levels
-        levels = []
-        remaining = set(vb6_project.files.keys())
-        
-        while remaining:
-            # Find files with no dependencies in remaining set
-            level = []
-            for file_name in list(remaining):
-                file_deps = set(deps.get(file_name, []))
-                if not (file_deps & remaining):  # No dependencies in remaining files
-                    level.append(file_name)
-            
-            if not level:
-                # Circular dependency or other issue - add remaining files
-                level = list(remaining)
-            
-            levels.append(level)
-            remaining -= set(level)
-        
-        return levels
-    
-    def _group_by_file_type(self, vb6_project: VB6Project) -> List[List[str]]:
-        """Group files by type for moderate parallelization"""
-        
-        groups = {}
-        for file_name, vb6_file in vb6_project.files.items():
-            file_type = vb6_file.file_type
-            if file_type not in groups:
-                groups[file_type] = []
-            groups[file_type].append(file_name)
-        
-        # Return groups in dependency order
-        ordered_groups = []
-        type_order = ['module', 'class', 'form', 'control']
-        
-        for file_type in type_order:
-            if file_type in groups:
-                ordered_groups.append(groups[file_type])
-        
-        # Add any remaining types
-        for file_type, files in groups.items():
-            if file_type not in type_order:
-                ordered_groups.append(files)
-        
-        return ordered_groups
-    
-    def _estimate_duration(self, vb6_project: VB6Project) -> float:
-        """Estimate translation duration in minutes using modernization approach"""
-        
-        base_time_per_file = {
-            'form': 5.0,      # Forms take longer due to UI complexity
-            'class': 3.0,     # Classes need careful property translation
-            'module': 2.0,    # Modules are generally simpler
-            'control': 4.0    # Controls similar to forms
-        }
-        
-        total_time = 0.0
-        
-        for vb6_file in vb6_project.files.values():
-            base_time = base_time_per_file.get(vb6_file.file_type, 2.0)
-            
-            # Adjust for complexity
-            complexity_multiplier = 1.0 + (vb6_file.complexity_score / 100.0)
-            
-            # Adjust for file size
-            size_multiplier = 1.0 + (vb6_file.lines_of_code / 1000.0)
-            
-            file_time = base_time * complexity_multiplier * size_multiplier
-            total_time += file_time
-        
-        # Apply modernization multiplier (takes more time due to pattern transformation)
-        total_time *= 1.2
-        
-        # Add overhead for analysis, planning, validation
-        total_time *= 1.3
-        
-        return total_time
-    
-    def _execute_translation(self, vb6_project: VB6Project, plan: TranslationPlan, 
-                           output_dir: Path) -> Dict[str, Path]:
-        """Execute the translation according to the plan"""
-        
-        self.logger.info("Converting VB6Project to translation components")
-        
-        # Convert VB6Project to components for TranslationOrchestrator
-        components = []
-        
-        for file_name, vb6_file in vb6_project.files.items():
-            # Map file type to component type
-            component_type_map = {
-                'form': ComponentType.FORM,
-                'class': ComponentType.CLASS,
-                'module': ComponentType.MODULE,
-                'control': ComponentType.CONTROL
-            }
-            
-            component_type = component_type_map.get(vb6_file.file_type, ComponentType.MODULE)
-            
-            # Create VB6Component with parsed data
-            component = VB6Component(
-                name=file_name,
-                file_path=vb6_file.path,
-                component_type=component_type,
-                dependencies=list(vb6_file.dependencies),
-                external_references=list(vb6_file.external_dependencies)
-            )
-            
-            # Parse the file content for translation
-            try:
-                parsed_data = self.translation_orchestrator.vb6_parser.parse_file(vb6_file.path)
-                component.parsed_data = parsed_data
-                self.logger.debug(f"Parsed component: {file_name}")
-            except Exception as e:
-                self.logger.warning(f"Failed to parse {file_name}: {e}")
-                # Component will still be processed, but with limited information
-            
-            components.append(component)
-        
-        self.logger.info(f"Prepared {len(components)} components for translation")
-        
-        # Execute translation using the translation orchestrator
-        # The translation orchestrator will handle proper dependency resolution and ordering
-        translated_components = self.translation_orchestrator.translate_project(components)
-        
+        translated_components = self.translation_orchestrator.completed_translations
         self.logger.info(f"Translation completed: {len(translated_components)} components translated")
         
         # Use the translation orchestrator's save functionality for consistent output
@@ -542,7 +314,7 @@ class ProjectOrchestrator:
         
         # Update progress tracking
         self.current_progress.completed_components = len(translated_components)
-        self.current_progress.failed_components = len(components) - len(translated_components)
+        self.current_progress.failed_components = len(components_map) - len(translated_components)
         
         # Convert saved_files structure to flat dictionary for compatibility
         translated_files = {}
@@ -579,188 +351,6 @@ class ProjectOrchestrator:
         
         return validation_results
     
-    def _generate_final_output(self, translated_files: Dict[str, Path], output_dir: Path) -> List[Path]:
-        """Generate final project structure and files"""
-        
-        generated_projects = []
-        
-        # Generate C# project file
-        project_file = self._generate_csharp_project(translated_files, output_dir)
-        if project_file:
-            generated_projects.append(project_file)
-        
-        # Generate solution file
-        solution_file = self._generate_solution_file(translated_files, output_dir)
-        if solution_file:
-            generated_projects.append(solution_file)
-        
-        # Generate README
-        readme_file = self._generate_readme(output_dir)
-        if readme_file:
-            generated_projects.append(readme_file)
-        
-        return generated_projects
-    
-    def _generate_csharp_project(self, translated_files: Dict[str, Path], output_dir: Path) -> Optional[Path]:
-        """Generate C# project file (.csproj)"""
-        
-        project_name = self.current_project.name if self.current_project else "TranslatedProject"
-        project_file = output_dir / f"{project_name}.csproj"
-        
-        # Determine if this is a WinForms or console application
-        has_forms = any('form' in str(path).lower() or 'designer' in str(path).lower() 
-                       for path in translated_files.values())
-        
-        # Also check if the original project had forms
-        if not has_forms and self.current_project:
-            has_forms = any(file.file_type == 'form' for file in self.current_project.files.values())
-        
-        project_content = f"""<Project Sdk="Microsoft.NET.Sdk">
-
-  <PropertyGroup>
-    <OutputType>{"WinExe" if has_forms else "Exe"}</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
-    <UseWindowsForms>{"true" if has_forms else "false"}</UseWindowsForms>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
-  </ItemGroup>
-
-</Project>"""
-        
-        try:
-            with open(project_file, 'w', encoding='utf-8') as f:
-                f.write(project_content)
-            return project_file
-        except Exception as e:
-            self.logger.error(f"Failed to generate project file: {e}")
-            return None
-    
-    def _generate_solution_file(self, translated_files: Dict[str, Path], output_dir: Path) -> Optional[Path]:
-        """Generate Visual Studio solution file (.sln)"""
-        
-        project_name = self.current_project.name if self.current_project else "TranslatedProject"
-        solution_file = output_dir / f"{project_name}.sln"
-        
-        # Generate a GUID for the project
-        import uuid
-        project_guid = str(uuid.uuid4()).upper()
-        solution_guid = str(uuid.uuid4()).upper()
-        
-        solution_content = f"""
-Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.0.31903.59
-MinimumVisualStudioVersion = 10.0.40219.1
-Project("{{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}}") = "{project_name}", "{project_name}.csproj", "{{{project_guid}}}"
-EndProject
-Global
-	GlobalSection(SolutionConfigurationPlatforms) = preSolution
-		Debug|Any CPU = Debug|Any CPU
-		Release|Any CPU = Release|Any CPU
-	EndGlobalSection
-	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{{{project_guid}}}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{{{project_guid}}}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{{{project_guid}}}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{{{project_guid}}}.Release|Any CPU.Build.0 = Release|Any CPU
-	EndGlobalSection
-	GlobalSection(SolutionProperties) = preSolution
-		HideSolutionNode = FALSE
-	EndGlobalSection
-	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {{{solution_guid}}}
-	EndGlobalSection
-EndGlobal
-"""
-        
-        try:
-            with open(solution_file, 'w', encoding='utf-8') as f:
-                f.write(solution_content.strip())
-            return solution_file
-        except Exception as e:
-            self.logger.error(f"Failed to generate solution file: {e}")
-            return None
-    
-    def _generate_readme(self, output_dir: Path) -> Optional[Path]:
-        """Generate README file with translation information"""
-        
-        readme_file = output_dir / "README.md"
-        project_name = self.current_project.name if self.current_project else "Translated Project"
-        
-        readme_content = f"""# {project_name} - Translated from VB6 to C#
-
-This project has been automatically translated from VB6 to C# using the Legacy Code Translation Pipeline.
-
-## Translation Summary
-
-- **Original Language**: VB6
-- **Target Language**: C# (.NET 8)
-- **Translation Approach**: Modern C# patterns and practices
-- **Files Translated**: {self.current_progress.completed_components if self.current_progress else 'Unknown'}
-- **Translation Date**: {time.strftime('%Y-%m-%d %H:%M:%S')}
-
-## Project Structure
-
-The translated project follows modern C# conventions:
-
-- **Forms**: Translated to WinForms with proper designer files
-- **Business Logic**: Converted to modern C# classes with proper error handling
-- **Data Access**: Migrated to Entity Framework Core with repository pattern
-- **Dependencies**: Updated to modern NuGet packages
-
-## Getting Started
-
-1. Open the solution file in Visual Studio 2022 or later
-2. Restore NuGet packages
-3. Update connection strings in appsettings.json if needed
-4. Build and run the application
-
-## Notes
-
-- Review all TODO comments in the generated code
-- Test thoroughly before production use
-- Consider updating deprecated patterns to modern C# features
-- Validate all database operations and connection strings
-
-## Translation Metrics
-
-{self._format_metrics_for_readme()}
-
----
-*Generated by Legacy Code Translation Pipeline*
-"""
-        
-        try:
-            with open(readme_file, 'w', encoding='utf-8') as f:
-                f.write(readme_content)
-            return readme_file
-        except Exception as e:
-            self.logger.error(f"Failed to generate README: {e}")
-            return None
-    
-    def _format_metrics_for_readme(self) -> str:
-        """Format metrics for README display"""
-        if not self.current_progress:
-            return "No metrics available"
-        
-        total_time = (self.current_progress.end_time or time.time()) - (self.current_progress.start_time or 0)
-        
-        return f"""
-- **Total Translation Time**: {total_time/60:.1f} minutes
-- **Components Processed**: {self.current_progress.total_components}
-- **Successfully Translated**: {self.current_progress.completed_components}
-- **Failed**: {self.current_progress.failed_components}
-- **Warnings**: {len(self.current_progress.warnings)}
-- **Errors**: {len(self.current_progress.errors)}
-"""
     
     def _calculate_metrics(self) -> Dict[str, Any]:
         """Calculate translation metrics"""
@@ -777,9 +367,9 @@ The translated project follows modern C# conventions:
             'success_rate': self.current_progress.completed_components / max(self.current_progress.total_components, 1),
             'phase_breakdown': self.current_progress.phase_times,
             'estimated_vs_actual': {
-                'estimated_minutes': self.current_plan.estimated_duration if self.current_plan else 0,
+                'estimated_minutes': 0,  # Estimation removed - not needed
                 'actual_minutes': total_time / 60,
-                'accuracy': abs(1 - (total_time / 60) / max(self.current_plan.estimated_duration if self.current_plan else 1, 1))
+                'accuracy': 0  # Estimation accuracy removed - not needed
             }
         }
     
@@ -827,7 +417,6 @@ Approach used: Modern C# patterns and practices
             project_name="Unknown",
             output_path=output_dir,
             progress=self.current_progress,
-            plan=self.current_plan or TranslationPlan(),
             summary=f"Translation failed: {error_message}"
         )
     
@@ -835,22 +424,7 @@ Approach used: Modern C# patterns and practices
         """Get current translation progress"""
         return self.current_progress
     
-    def get_plan(self) -> Optional[TranslationPlan]:
-        """Get current translation plan"""
-        return self.current_plan
-    
-    def _report_progress(self, message: str):
-        """Report progress to callback if available"""
-        if self.progress_callback:
-            try:
-                self.progress_callback({
-                    'phase': self.current_progress.current_phase.value if self.current_progress else 'unknown',
-                    'message': message,
-                    'progress': self.current_progress,
-                    'timestamp': time.time()
-                })
-            except Exception as e:
-                self.logger.warning(f"Progress callback failed: {e}")
+
     
     def _log_timing_summary(self):
         """Log comprehensive timing summary"""
@@ -872,14 +446,7 @@ Approach used: Modern C# patterns and practices
             percentage = (duration / total_time) * 100 if total_time > 0 else 0
             self.logger.info(f"  • {phase.title()}: {duration:.2f}s ({percentage:.1f}%)")
         
-        # Performance metrics
-        if self.current_plan:
-            estimated = self.current_plan.estimated_duration * 60  # Convert to seconds
-            accuracy = abs(total_time - estimated) / max(estimated, 1) * 100
-            self.logger.info(f"\n📈 Performance:")
-            self.logger.info(f"  • Estimated: {estimated:.1f}s")
-            self.logger.info(f"  • Actual: {total_time:.1f}s")
-            self.logger.info(f"  • Accuracy: ±{accuracy:.1f}%")
+        # Performance metrics removed - estimation not needed
         
         self.logger.info("=" * 60)
 
@@ -891,8 +458,6 @@ def main():
     parser = argparse.ArgumentParser(description="VB6 to C# Project Translation Orchestrator")
     parser.add_argument("project_path", help="Path to VB6 project file or directory")
     parser.add_argument("--output-dir", help="Output directory for translated files")
-    parser.add_argument("--max-workers", type=int, default=3, help="Maximum number of parallel workers")
-    parser.add_argument("--config", help="Configuration file path")
     
     args = parser.parse_args()
     
@@ -902,19 +467,8 @@ def main():
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
     
-    # Load configuration if provided
-    config = {}
-    if args.config:
-        try:
-            with open(args.config, 'r') as f:
-                config = json.load(f)
-        except Exception as e:
-            print(f"Failed to load config: {e}")
-    
-    config['max_workers'] = args.max_workers
-    
-    # Initialize orchestrator
-    orchestrator = ProjectOrchestrator(config)
+    # Initialize orchestrator (uses settings.py for configuration)
+    orchestrator = ProjectOrchestrator()
     
     try:
         # Execute translation using modernization approach
@@ -932,11 +486,6 @@ def main():
         if result.success:
             print(f"\nOutput directory: {result.output_path}")
             print(f"Generated files: {len(result.translated_files)}")
-            
-            if result.generated_projects:
-                print("\nGenerated project files:")
-                for project_file in result.generated_projects:
-                    print(f"  - {project_file}")
         
         print("\nMetrics:")
         for key, value in result.metrics.items():
