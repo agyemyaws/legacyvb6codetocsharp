@@ -7,7 +7,6 @@ This orchestrator:
 2. Plans optimal translation strategy
 3. Coordinates between all translation agents
 4. Monitors progress and handles errors
-5. Manages validation and testing phases
 6. Generates final structured output
 """
 
@@ -25,7 +24,6 @@ from typing import Dict, List, Optional, Any
 sys.path.append(str(Path(__file__).parent.parent))
 
 from Core.analyzer import VB6Analyzer, VB6Project
-from Evaluation.evaluator import TranslationEvaluator
 from settings import get_settings
 from Translation.translator_orchestrator import TranslationOrchestrator
 
@@ -34,7 +32,6 @@ class TranslationPhase(Enum):
     """Translation workflow phases"""
     ANALYSIS = "analysis"
     TRANSLATION = "translation"
-    VALIDATION = "validation"
     OUTPUT_GENERATION = "output_generation"
     COMPLETED = "completed"
     FAILED = "failed"
@@ -63,7 +60,6 @@ class TranslationResult:
     output_path: Path
     progress: TranslationProgress
     translated_files: Dict[str, Path] = field(default_factory=dict)
-    validation_results: Dict[str, Any] = field(default_factory=dict)
     metrics: Dict[str, Any] = field(default_factory=dict)
     summary: str = ""
 
@@ -86,8 +82,9 @@ class ProjectOrchestrator:
             max_retries=self.settings.MAX_RETRIES
         )
         
-        # Note: evaluator is initialized on demand when validation is enabled
+        # Initialize state tracking
         self.current_progress: Optional[TranslationProgress] = None
+        self.current_project: Optional[VB6Project] = None
         
     
     def translate_project(self, vb6_project_path: str, output_path: str = None) -> TranslationResult:
@@ -148,29 +145,8 @@ class ProjectOrchestrator:
             self.logger.info(f"📊 Success: {self.current_progress.completed_components}/{self.current_progress.total_components} components")
             self.logger.info(f"🔄 Rate: {self.current_progress.completed_components/max(translation_time, 1):.2f} components/second")
             
-            # Phase 3: Validation (optional - can be enabled later)
-            self.logger.info("Phase 3: Validation phase")
-            self.current_progress.current_phase = TranslationPhase.VALIDATION
-            phase_start = time.time()
-            
-            if hasattr(self, 'evaluator') and self.settings.ENABLE_VALIDATION:
-                self.logger.info("Running translation validation")
-                validation_results = self._validate_translation(translation_results, output_dir)
-            else:
-                self.logger.info("Skipping validation - evaluator not available or disabled")
-                validation_results = {
-                    "skipped": True, 
-                    "reason": "Evaluator not available or validation disabled",
-                    "evaluator_available": hasattr(self, 'evaluator'),
-                    "validation_enabled": self.settings.ENABLE_VALIDATION
-                }
-            
-            validation_time = time.time() - phase_start
-            self.current_progress.phase_times['validation'] = validation_time
-            self.logger.info(f"⏱️  Validation completed in {validation_time:.2f} seconds")
-            
-            # Phase 4: Finalization (no additional file generation)
-            self.logger.info("Phase 4: Finalizing translation")
+            # Phase 3: Finalization
+            self.logger.info("Phase 3: Finalizing translation")
             self.current_progress.current_phase = TranslationPhase.OUTPUT_GENERATION
             phase_start = time.time()
             
@@ -184,8 +160,9 @@ class ProjectOrchestrator:
             self.current_progress.current_phase = TranslationPhase.COMPLETED
             self.current_progress.end_time = time.time()
             
-            # Log comprehensive timing summary
-            self._log_timing_summary()
+            # Log total translation time
+            total_time = self.current_progress.end_time - self.current_progress.start_time
+            self.logger.info(f"Translation completed in {total_time:.2f} seconds ({total_time/60:.2f} minutes)")
             
             return TranslationResult(
                 success=True,
@@ -193,9 +170,8 @@ class ProjectOrchestrator:
                 output_path=output_dir,
                 progress=self.current_progress,
                 translated_files=translation_results,
-                validation_results=validation_results,
                 metrics=self._calculate_metrics(),
-                summary=self._generate_summary()
+                summary=f"Translation of '{vb6_project.name}' completed successfully."
             )
             
         except Exception as e:
@@ -328,29 +304,6 @@ class ProjectOrchestrator:
         
         return translated_files
     
-    def _validate_translation(self, translated_files: Dict[str, Path], output_dir: Path) -> Dict[str, Any]:
-        """Validate the translation results"""
-        
-        validation_results = {
-            'compilation_check': False,
-            'syntax_errors': [],
-            'warnings': [],
-            'metrics': {}
-        }
-        
-        if self.evaluator:
-            try:
-                # Run evaluation if available
-                eval_results = self.evaluator.evaluate_translation(translated_files, output_dir)
-                validation_results.update(eval_results)
-            except Exception as e:
-                self.logger.warning(f"Evaluation failed: {e}")
-                validation_results['evaluation_error'] = str(e)
-        else:
-            self.logger.info("Evaluation framework not available, skipping validation")
-        
-        return validation_results
-    
     
     def _calculate_metrics(self) -> Dict[str, Any]:
         """Calculate translation metrics"""
@@ -365,41 +318,10 @@ class ProjectOrchestrator:
             'total_time_minutes': total_time / 60,
             'components_per_minute': self.current_progress.completed_components / max(total_time / 60, 1),
             'success_rate': self.current_progress.completed_components / max(self.current_progress.total_components, 1),
-            'phase_breakdown': self.current_progress.phase_times,
-            'estimated_vs_actual': {
-                'estimated_minutes': 0,  # Estimation removed - not needed
-                'actual_minutes': total_time / 60,
-                'accuracy': 0  # Estimation accuracy removed - not needed
-            }
+            'phase_breakdown': self.current_progress.phase_times
         }
     
-    def _generate_summary(self) -> str:
-        """Generate a human-readable summary of the translation"""
-        
-        if not self.current_progress or not self.current_project:
-            return "Translation summary not available"
-        
-        success_rate = self.current_progress.completed_components / max(self.current_progress.total_components, 1) * 100
-        total_time = (self.current_progress.end_time or time.time()) - (self.current_progress.start_time or 0)
-        
-        summary = f"""Translation of '{self.current_project.name}' completed with {success_rate:.1f}% success rate.
 
-Processed {self.current_progress.total_components} components in {total_time/60:.1f} minutes:
-- Successfully translated: {self.current_progress.completed_components}
-- Failed: {self.current_progress.failed_components}
-- Skipped: {self.current_progress.skipped_components}
-
-Approach used: Modern C# patterns and practices
-"""
-        
-        if self.current_progress.errors:
-            summary += f"\nErrors encountered: {len(self.current_progress.errors)}"
-        
-        if self.current_progress.warnings:
-            summary += f"\nWarnings: {len(self.current_progress.warnings)}"
-        
-        return summary
-    
     def _create_failed_result(self, error_message: str, output_dir: Path) -> TranslationResult:
         """Create a failed translation result"""
         
@@ -419,36 +341,6 @@ Approach used: Modern C# patterns and practices
             progress=self.current_progress,
             summary=f"Translation failed: {error_message}"
         )
-    
-    def get_progress(self) -> Optional[TranslationProgress]:
-        """Get current translation progress"""
-        return self.current_progress
-    
-
-    
-    def _log_timing_summary(self):
-        """Log comprehensive timing summary"""
-        if not self.current_progress:
-            return
-        
-        total_time = self.current_progress.end_time - self.current_progress.start_time
-        
-        self.logger.info("=" * 60)
-        self.logger.info("🏁 TRANSLATION TIMING SUMMARY")
-        self.logger.info("=" * 60)
-        self.logger.info(f"🕐 Total Duration: {total_time:.2f} seconds ({total_time/60:.2f} minutes)")
-        self.logger.info(f"📊 Components: {self.current_progress.completed_components}/{self.current_progress.total_components}")
-        self.logger.info(f"🚀 Overall Rate: {self.current_progress.completed_components/max(total_time, 1):.2f} components/second")
-        
-        # Phase breakdown
-        self.logger.info("\n📋 Phase Breakdown:")
-        for phase, duration in self.current_progress.phase_times.items():
-            percentage = (duration / total_time) * 100 if total_time > 0 else 0
-            self.logger.info(f"  • {phase.title()}: {duration:.2f}s ({percentage:.1f}%)")
-        
-        # Performance metrics removed - estimation not needed
-        
-        self.logger.info("=" * 60)
 
 
 def main():
