@@ -54,8 +54,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--max-workers", "-w",
         type=int,
-        default=3,
-        help="Maximum number of parallel workers (default: 3)"
+        help="Maximum number of parallel workers (default: from settings)"
     )
     
     parser.add_argument(
@@ -67,12 +66,6 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--log-file",
         help="Write log output to specific file (default: logs/vb6_analyzer_TIMESTAMP.log)"
-    )
-    
-    parser.add_argument(
-        "--enable-validation",
-        action="store_true",
-        help="Enable translation validation (requires evaluation framework)"
     )
     
     return parser.parse_args()
@@ -91,7 +84,7 @@ def setup_application(args: argparse.Namespace) -> None:
     
     setup_logging(
         level=log_level,
-        log_file=log_file
+        task_name="translation"
     )
     
     logger = logging.getLogger(__name__)
@@ -124,11 +117,7 @@ def validate_inputs(args: argparse.Namespace) -> bool:
     else:
         print(f"❌ Error: Invalid project path: {project_path}")
         return False
-    
-    # Validate max workers
-    if args.max_workers < 1 or args.max_workers > 10:
-        print(f"❌ Error: Max workers must be between 1 and 10, got: {args.max_workers}")
-        return False
+
     
     return True
 
@@ -193,14 +182,7 @@ def main() -> int:
         # Display startup information
         display_startup_info(project_path, output_dir)
         
-        # Initialize orchestrator
-        config = {
-            'max_workers': args.max_workers,
-            'verbose': args.verbose,
-            'enable_validation': args.enable_validation
-        }
-        
-        orchestrator = ProjectOrchestrator(config)
+        orchestrator = ProjectOrchestrator()
         print("🚀 Starting translation...\n")
         
         # Execute translation with timing

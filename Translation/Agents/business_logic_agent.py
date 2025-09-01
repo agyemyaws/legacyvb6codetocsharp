@@ -8,9 +8,22 @@ import re
 # Add project root to path for imports
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
+from Core.analyzer import VB6File
 from Utils.vb6_parser import VB6ParsedFile
 from Utils.prompt_templates import get_prompt_manager
 from Utils.model_interface import OllamaClient, ClaudeClient, ModelResponse
+
+
+@dataclass
+class CSharpComponent:
+    """Represents a translated C# component"""
+    name: str
+    content: str
+    file_type: str  # .cs, .Designer.cs, .resx, etc.
+    namespace: str
+    dependencies: List[str] = field(default_factory=list)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
 
 @dataclass
 class CSharpClass:
@@ -22,7 +35,20 @@ class CSharpClass:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
-class BusinessLogicAgent:
+class BaseTranslationAgent:
+    """Base class for all translation agents"""
+    
+    def __init__(self, name: str, model_client: Union[OllamaClient, ClaudeClient]):
+        self.name = name
+        self.model_client = model_client
+        self.logger = logging.getLogger(f"{__name__}.{name}")
+    
+    def translate(self, vb6_file: VB6File) -> CSharpComponent:
+        """Translate a VB6 file to C#"""
+        raise NotImplementedError("Subclasses must implement translate method")
+
+
+class BusinessLogicAgent(BaseTranslationAgent):
     """
     Business Logic Translation Agent
     Specialized agent for translating VB6 modules (.bas) and class files (.cls) to C#.
@@ -37,8 +63,7 @@ class BusinessLogicAgent:
     """
         
     def __init__(self, model_client: Union[OllamaClient, ClaudeClient]):
-        self.model_client = model_client
-        self.logger = logging.getLogger(__name__)
+        super().__init__("BusinessLogicAgent", model_client)
         self.prompt_manager = get_prompt_manager()
         
         # Initialize RAG manager for context-aware translation
@@ -49,6 +74,30 @@ class BusinessLogicAgent:
         except Exception as e:
             self.rag_manager = None
             self.logger.warning(f"RAG manager not available: {e}")
+    
+    def translate(self, vb6_file: VB6File) -> CSharpComponent:
+        """Translate VB6 module/class to C# - implements BaseTranslationAgent interface"""
+        self.logger.info(f"Translating business logic: {vb6_file.name}")
+        
+        try:
+            # Use the existing translate_module method
+            csharp_class = self.translate_module(vb6_file.parsed_data)
+            
+            if csharp_class:
+                # Convert CSharpClass to CSharpComponent
+                return CSharpComponent(
+                    name=csharp_class.name,
+                    content=csharp_class.class_code,
+                    file_type="cs",
+                    namespace=csharp_class.namespace,
+                    metadata=csharp_class.metadata
+                )
+            else:
+                raise Exception("translate_class returned None - translation failed")
+                
+        except Exception as e:
+            self.logger.error(f"BusinessLogicAgent translation failed for {vb6_file.name}: {e}")
+            raise Exception(f"Failed to translate VB6 business logic '{vb6_file.name}': {e}") from e
 
     
     def translate_module(self, parsed_file: VB6ParsedFile) -> Optional[CSharpClass]:
@@ -187,6 +236,8 @@ class BusinessLogicAgent:
         if sanitized and sanitized[0].isdigit():
             sanitized = f"_{sanitized}"
         return sanitized
+    
+
 
 
 def main():

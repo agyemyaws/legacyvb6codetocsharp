@@ -31,6 +31,14 @@ class Settings:
         
         # Default provider preference
         self.DEFAULT_PROVIDER = os.environ.get("DEFAULT_PROVIDER", "claude")  # "ollama" or "claude"
+        
+        # Translation Orchestrator settings
+        self.MAX_WORKERS = int(os.environ.get("MAX_WORKERS", "3"))
+        self.MAX_RETRIES = int(os.environ.get("MAX_RETRIES", "2"))
+        
+        # Project Orchestrator settings
+        self.OUTPUT_BASE_DIR = os.environ.get("OUTPUT_BASE_DIR", "Data/Output")
+        self.BATCH_SIZE = int(os.environ.get("BATCH_SIZE", "5"))
 
 
 # Global settings instance
@@ -85,6 +93,5 @@ def get_model_preset(preset_name: str, provider: str = "ollama") -> dict:
         return claude_presets.get(preset_name, {})
     else:
         return ollama_presets.get(preset_name, {})
-
 
  

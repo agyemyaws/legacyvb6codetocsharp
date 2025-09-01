@@ -11,32 +11,24 @@ This is the central component that:
 
 import logging
 import sys
-from pathlib import Path
-from typing import Dict, List, Optional, Any, Union, Tuple
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from enum import Enum
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import time
+from pathlib import Path
+from typing import Dict, List, Optional, Any, Union
 
 # Add project root to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
 
-from Utils.vb6_parser import VB6Parser, VB6ParsedFile
+from Core.analyzer import VB6File
+from settings import get_settings
+from Translation.Agents.business_logic_agent import BusinessLogicAgent, CSharpClass
+from Translation.Agents.form_agent import FormAgent
 from Utils.dependency_resolver import DependencyResolver
 from Utils.model_interface import OllamaClient, ClaudeClient, ModelResponse
-from settings import get_settings
 from Utils.prompt_templates import get_prompt_manager, get_translation_prompt
-from Translation.Agents.form_agent import FormAgent, CSharpForm
-from Translation.Agents.business_logic_agent import BusinessLogicAgent, CSharpClass
-
-class ComponentType(Enum):
-    """VB6 component types that require different translation approaches"""
-    FORM = "form"
-    MODULE = "module"
-    CLASS = "class"
-    CONTROL = "control"
-    PROJECT = "project"
-
+from Utils.vb6_parser import VB6Parser, VB6ParsedFile
 
 class TranslationStatus(Enum):
     """Translation status for components"""
@@ -45,18 +37,6 @@ class TranslationStatus(Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     SKIPPED = "skipped"
-
-
-@dataclass
-class VB6Component:
-    """Represents a VB6 component to be translated"""
-    name: str
-    file_path: Path
-    component_type: ComponentType
-    parsed_data: Optional[VB6ParsedFile] = None
-    dependencies: List[str] = field(default_factory=list)
-    external_references: List[str] = field(default_factory=list)
-    priority: int = 0  # Higher priority = translate first
 
 
 @dataclass
@@ -73,7 +53,7 @@ class CSharpComponent:
 @dataclass
 class TranslationTask:
     """Represents a translation task"""
-    component: VB6Component
+    component: VB6File
     status: TranslationStatus = TranslationStatus.PENDING
     assigned_agent: Optional[str] = None
     start_time: Optional[float] = None
@@ -90,149 +70,16 @@ class BaseTranslationAgent:
         self.name = name
         self.model_client = model_client
         self.logger = logging.getLogger(f"{__name__}.{name}")
-        self.supported_types: List[ComponentType] = []
     
-    def can_handle(self, component: VB6Component) -> bool:
-        """Check if this agent can handle the given component type"""
-        return component.component_type in self.supported_types
-    
-    def translate(self, component: VB6Component) -> CSharpComponent:
-        """Translate a VB6 component to C#"""
+    def translate(self, vb6_file: VB6File) -> CSharpComponent:
+        """Translate a VB6 file to C#"""
         raise NotImplementedError("Subclasses must implement translate method")
-    
-    def get_priority_score(self, component: VB6Component) -> int:
-        """Get priority score for handling this component (higher = better match)"""
-        if component.component_type in self.supported_types:
-            return len(self.supported_types) - self.supported_types.index(component.component_type)
-        return 0
 
 
 
 
-class FormTranslationAgent(BaseTranslationAgent):
-    """Agent specialized in translating VB6 forms to C# WinForms/WPF"""
-    
-    def __init__(self, model_client: Union[OllamaClient, ClaudeClient]):
-        super().__init__("FormAgent", model_client)
-        self.supported_types = [ComponentType.FORM, ComponentType.CONTROL]
-        
-        # Initialize the actual form agent
-        self.form_agent = FormAgent(model_client)
-    
-    def translate(self, component: VB6Component) -> CSharpComponent:
-        """Translate VB6 form to C# form"""
-        self.logger.info(f"Translating form: {component.name}")
-        
-        try:
-            # Use the actual FormAgent for translation
-            csharp_form = self.form_agent.translate_form(component.parsed_data)
-            
-            if csharp_form:
-                # Convert CSharpForm to CSharpComponent for main form file
-                form_component = CSharpComponent(
-                    name=csharp_form.name,
-                    content=csharp_form.form_class_code,
-                    file_type="cs",
-                    namespace=csharp_form.namespace,
-                    metadata=csharp_form.metadata
-                )
-                
-                # Store designer code separately in metadata for later saving
-                form_component.metadata["designer_code"] = csharp_form.designer_code
-                form_component.metadata["using_statements"] = csharp_form.using_statements
-                
-                return form_component
-                
-        except Exception as e:
-            self.logger.error(f"FormAgent translation failed: {e}")
-        
-        # Fallback to placeholder implementation
-        form_content = self._generate_form_code(component)
-        
-        return CSharpComponent(
-            name=component.name,
-            content=form_content,
-            file_type="cs",
-            namespace=f"Translated.Forms",
-            metadata={"original_file": str(component.file_path)}
-        )
-    
-    def _generate_form_code(self, component: VB6Component) -> str:
-        """Generate C# form code from VB6 component (fallback)"""
-        return f"""using System;
-using System.Windows.Forms;
-
-namespace Translated.Forms
-{{
-    public partial class {component.name} : Form
-    {{
-        public {component.name}()
-        {{
-            InitializeComponent();
-        }}
-        
-        // TODO: Implement form logic from {component.file_path}
-    }}
-}}"""
 
 
-class BusinessLogicTranslationAgent(BaseTranslationAgent):
-    """Agent specialized in translating VB6 modules and classes"""
-    
-    def __init__(self, model_client: Union[OllamaClient, ClaudeClient]):
-        super().__init__("BusinessLogicAgent", model_client)
-        self.supported_types = [ComponentType.MODULE, ComponentType.CLASS]
-        
-        # Initialize the actual business logic agent
-        self.business_logic_agent = BusinessLogicAgent(model_client)
-    
-    def translate(self, component: VB6Component) -> CSharpComponent:
-        """Translate VB6 module/class to C#"""
-        self.logger.info(f"Translating business logic: {component.name}")
-        
-        try:
-            # Use the actual BusinessLogicAgent for translation
-            csharp_class = self.business_logic_agent.translate_module(component.parsed_data)
-            
-            if csharp_class:
-                # Convert CSharpClass to CSharpComponent format expected by orchestrator
-                return CSharpComponent(
-                    name=csharp_class.name,
-                    content=csharp_class.class_code,
-                    file_type="cs",
-                    namespace=csharp_class.namespace,
-                    metadata={
-                        "original_file": str(component.file_path),
-                        "using_statements": csharp_class.using_statements,
-                        **csharp_class.metadata
-                    }
-                )
-        except Exception as e:
-            self.logger.error(f"BusinessLogicAgent translation failed: {e}")
-        
-        # Fallback to placeholder implementation
-        class_content = self._generate_class_code(component)
-        
-        return CSharpComponent(
-            name=component.name,
-            content=class_content,
-            file_type="cs",
-            namespace=f"Translated.Business",
-            metadata={"original_file": str(component.file_path)}
-        )
-    
-    def _generate_class_code(self, component: VB6Component) -> str:
-        """Generate C# class code from VB6 component (fallback)"""
-        class_type = "class" if component.component_type == ComponentType.CLASS else "static class"
-        return f"""using System;
-
-namespace Translated.Business
-{{
-    public {class_type} {component.name}
-    {{
-        // TODO: Implement logic from {component.file_path}
-    }}
-}}"""
 
 
 class TranslationOrchestrator:
@@ -246,10 +93,11 @@ class TranslationOrchestrator:
     - Monitor progress and handle errors
     """
     
-    def __init__(self, max_workers: int = 3, max_retries: int = 2):
+    def __init__(self, max_workers: int = None, max_retries: int = None):
         self.logger = logging.getLogger(__name__)
-        self.max_workers = max_workers
-        self.max_retries = max_retries
+        settings = get_settings()
+        self.max_workers = max_workers if max_workers is not None else settings.MAX_WORKERS
+        self.max_retries = max_retries if max_retries is not None else settings.MAX_RETRIES
         
         # Initialize components
         self.vb6_parser = VB6Parser()
@@ -278,255 +126,46 @@ class TranslationOrchestrator:
     def _initialize_agents(self):
         """Initialize all available translation agents"""
         self.agents = {
-            "form": FormTranslationAgent(self.model_client),
-            "business_logic": BusinessLogicTranslationAgent(self.model_client)
+            "form": FormAgent(self.model_client),
+            "business_logic": BusinessLogicAgent(self.model_client)
         }
         
         self.logger.info(f"Initialized {len(self.agents)} translation agents")
     
-    def analyze_vb6_project(self, project_path: Path) -> List[VB6Component]:
-        """
-        Analyze VB6 project and identify all components to translate
-        
-        Args:
-            project_path: Path to VB6 project directory or .vbp file
-            
-        Returns:
-            List of VB6 components ready for translation
-        """
-        self.logger.info(f"Analyzing VB6 project: {project_path}")
-        
-        components = []
-        
-        if project_path.is_file() and project_path.suffix.lower() == '.vbp':
-            # Parse project file to get component list
-            components = self._parse_project_file(project_path)
-        elif project_path.is_dir():
-            # Scan directory for VB6 files
-            components = self._scan_directory(project_path)
-        else:
-            raise ValueError(f"Invalid project path: {project_path}")
-        
-        # Parse each component
-        for component in components:
-            try:
-                parsed_data = self.vb6_parser.parse_file(component.file_path)
-                component.parsed_data = parsed_data
-                
-                if parsed_data:
-                    component.dependencies = list(parsed_data.dependencies)
-                    component.external_references = list(parsed_data.external_references)
-            except Exception as e:
-                self.logger.warning(f"Failed to parse {component.file_path}: {e}")
-        
-        self.logger.info(f"Found {len(components)} components to translate")
-        return components
-    
-    def _parse_project_file(self, vbp_path: Path) -> List[VB6Component]:
-        """Parse .vbp file to extract component list"""
-        components = []
-        project_dir = vbp_path.parent
-        
-        try:
-            with open(vbp_path, 'r', encoding='latin-1') as f:
-                content = f.read()
-            
-            for line in content.split('\n'):
-                line = line.strip()
-                
-                if line.startswith('Form='):
-                    # Form=frmMain.frm
-                    form_file = line.split('=', 1)[1]
-                    form_path = project_dir / form_file
-                    if form_path.exists():
-                        components.append(VB6Component(
-                            name=form_path.stem,
-                            file_path=form_path,
-                            component_type=ComponentType.FORM
-                        ))
-                
-                elif line.startswith('Module='):
-                    # Module=modUtilities; modUtilities.bas
-                    parts = line.split('=', 1)[1].split(';')
-                    if len(parts) >= 2:
-                        module_name = parts[0].strip()
-                        module_file = parts[1].strip()
-                        module_path = project_dir / module_file
-                        if module_path.exists():
-                            components.append(VB6Component(
-                                name=module_name,
-                                file_path=module_path,
-                                component_type=ComponentType.MODULE
-                            ))
-                
-                elif line.startswith('Class='):
-                    # Class=clsPerson; clsPerson.cls
-                    parts = line.split('=', 1)[1].split(';')
-                    if len(parts) >= 2:
-                        class_name = parts[0].strip()
-                        class_file = parts[1].strip()
-                        class_path = project_dir / class_file
-                        if class_path.exists():
-                            components.append(VB6Component(
-                                name=class_name,
-                                file_path=class_path,
-                                component_type=ComponentType.CLASS
-                            ))
-        
-        except Exception as e:
-            self.logger.error(f"Error parsing project file {vbp_path}: {e}")
-        
-        return components
-    
-    def _scan_directory(self, directory: Path) -> List[VB6Component]:
-        """Scan directory for VB6 files"""
-        components = []
-        
-        # File type mappings
-        type_mappings = {
-            '.frm': ComponentType.FORM,
-            '.cls': ComponentType.CLASS,
-            '.bas': ComponentType.MODULE,
-            '.ctl': ComponentType.CONTROL
-        }
-        
-        for file_path in directory.rglob('*'):
-            if file_path.suffix.lower() in type_mappings:
-                component_type = type_mappings[file_path.suffix.lower()]
-                components.append(VB6Component(
-                    name=file_path.stem,
-                    file_path=file_path,
-                    component_type=component_type
-                ))
-        
-        return components
-    
-    def translate_project(self, components: List[VB6Component]) -> Dict[str, CSharpComponent]:
-        """
-        Translate entire project with proper dependency handling
-        
-        Args:
-            components: List of VB6 components to translate
-            
-        Returns:
-            Dictionary mapping component names to translated C# components
-        """
-        self.logger.info(f"Starting translation of {len(components)} components")
-        
-        # Create translation tasks
-        self.tasks = {
-            comp.name: TranslationTask(component=comp)
-            for comp in components
-        }
-        
-        # Resolve dependencies and get translation order
-        try:
-            translation_order = self._get_translation_order(components)
-        except Exception as e:
-            self.logger.error(f"Failed to resolve dependencies: {e}")
-            # Fallback to simple ordering
-            translation_order = [comp.name for comp in components]
-        
-        # Execute translations
-        self._execute_translations(translation_order)
-        
-        # Log translation timing summary
-        self._log_translation_timing_summary()
-        
-        self.logger.info(f"Translation completed. {len(self.completed_translations)} successful, {len(self.failed_translations)} failed")
-        
-        return self.completed_translations
-    
-    def _get_translation_order(self, components: List[VB6Component]) -> List[str]:
-        """Determine optimal translation order based on dependencies"""
-        # Build dependency map
-        dependencies = {}
-        for comp in components:
-            # Filter dependencies to only include components in this project
-            project_deps = [
-                dep for dep in comp.dependencies 
-                if any(other.name == dep for other in components)
-            ]
-            dependencies[comp.name] = project_deps
-        
-        # Use dependency resolver to get order
-        return self.dependency_resolver.resolve_dependencies(dependencies)
-    
-    def _execute_translations(self, translation_order: List[str]):
-        """Execute translations in the specified order"""
-        
-        if self.max_workers == 1:
-            # Sequential processing
-            for component_name in translation_order:
-                self._translate_component(component_name)
-        else:
-            # Parallel processing with dependency constraints
-            self._execute_parallel_translations(translation_order)
-    
-    def _execute_parallel_translations(self, translation_order: List[str]):
-        """Execute translations in parallel while respecting dependencies"""
-        
-        completed = set()
-        remaining = set(translation_order)
-        
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            while remaining:
-                # Find components ready for translation (dependencies satisfied)
-                ready = []
-                for comp_name in remaining:
-                    task = self.tasks[comp_name]
-                    deps_satisfied = all(
-                        dep in completed or dep not in remaining
-                        for dep in task.component.dependencies
-                    )
-                    if deps_satisfied:
-                        ready.append(comp_name)
-                
-                if not ready:
-                    # No components ready - might indicate circular dependencies
-                    # Translate remaining components anyway
-                    ready = list(remaining)[:self.max_workers]
-                    self.logger.warning("Possible circular dependencies detected, proceeding with remaining components")
-                
-                # Submit translation tasks
-                future_to_name = {}
-                for comp_name in ready[:self.max_workers]:
-                    future = executor.submit(self._translate_component, comp_name)
-                    future_to_name[future] = comp_name
-                    remaining.remove(comp_name)
-                
-                # Wait for completion
-                for future in as_completed(future_to_name):
-                    comp_name = future_to_name[future]
-                    try:
-                        future.result()  # This will raise any exception that occurred
-                        completed.add(comp_name)
-                    except Exception as e:
-                        self.logger.error(f"Translation failed for {comp_name}: {e}")
-                        self.failed_translations[comp_name] = str(e)
-    
-    def _translate_component(self, component_name: str) -> bool:
+    def _translate_component(self, component_name: str, vb6_file: VB6File) -> bool:
         """
         Translate a single component
+        
+        Args:
+            component_name: Name of the component
+            vb6_file: VB6File object containing all file information
         
         Returns:
             True if translation successful, False otherwise
         """
+        # Create or get task
+        if component_name not in self.tasks:
+            self.tasks[component_name] = TranslationTask(component=vb6_file)
+        
         task = self.tasks[component_name]
         task.status = TranslationStatus.IN_PROGRESS
         task.start_time = time.time()
         
         try:
-            # Select best agent for this component
-            agent = self._select_agent(task.component)
+            # Select agent based on file type - simple and direct
+            if vb6_file.file_type in ['form', 'control']:
+                agent = self.agents.get('form')
+            else:  # 'class', 'module', or anything else
+                agent = self.agents.get('business_logic')
+            
             if not agent:
-                raise ValueError(f"No suitable agent found for {task.component.component_type}")
+                raise ValueError(f"No suitable agent found for {vb6_file.file_type}")
             
             task.assigned_agent = agent.name
             self.logger.info(f"Translating {component_name} with {agent.name}")
             
             # Perform translation
-            result = agent.translate(task.component)
+            result = agent.translate(vb6_file)
             
             # Store results
             task.result = result
@@ -539,8 +178,8 @@ class TranslationOrchestrator:
             self.logger.info(f"✅ Successfully translated {component_name} in {duration:.2f}s using {agent.name}")
             
             # Log component-specific timing details
-            component_type = task.component.component_type.value
-            self.logger.debug(f"📊 {component_name} ({component_type}): {duration:.2f}s")
+            file_type = vb6_file.file_type
+            self.logger.debug(f"📊 {component_name} ({file_type}): {duration:.2f}s")
             
             return True
             
@@ -553,27 +192,11 @@ class TranslationOrchestrator:
             if task.retry_count < self.max_retries:
                 task.retry_count += 1
                 self.logger.warning(f"Translation failed for {component_name}, retrying ({task.retry_count}/{self.max_retries}): {e}")
-                return self._translate_component(component_name)  # Retry
+                return self._translate_component(component_name, vb6_file)  # Retry
             else:
                 self.logger.error(f"Translation failed for {component_name} after {self.max_retries} retries: {e}")
                 self.failed_translations[component_name] = str(e)
                 return False
-    
-    def _select_agent(self, component: VB6Component) -> Optional[BaseTranslationAgent]:
-        """Select the best agent for translating the given component"""
-        
-        # Find agents that can handle this component type
-        capable_agents = [
-            agent for agent in self.agents.values()
-            if agent.can_handle(component)
-        ]
-        
-        if not capable_agents:
-            return None
-        
-        # Select agent with highest priority score
-        best_agent = max(capable_agents, key=lambda a: a.get_priority_score(component))
-        return best_agent
     
     def get_translation_progress(self) -> Dict[str, Any]:
         """Get current translation progress statistics"""
@@ -636,8 +259,8 @@ class TranslationOrchestrator:
             if task.start_time and task.end_time:
                 duration = task.end_time - task.start_time
                 total_translation_time += duration
-                component_type = task.component.component_type.value
-                self.logger.info(f"  • {task.component.name} ({component_type}): {duration:.2f}s [{task.assigned_agent}]")
+                file_type = task.component.file_type
+                self.logger.info(f"  • {task.component.name} ({file_type}): {duration:.2f}s [{task.assigned_agent}]")
         
         # Summary statistics
         durations = [t.end_time - t.start_time for t in completed_tasks if t.start_time and t.end_time]
@@ -805,15 +428,15 @@ class TranslationOrchestrator:
 
 
 def run_standalone_translation(project_path: str, output_dir: str = None, 
-                              max_workers: int = 3, max_retries: int = 2) -> Dict[str, Any]:
+                              max_workers: int = None, max_retries: int = None) -> Dict[str, Any]:
     """
     Standalone function for running translation directly (for testing/debugging)
     
     Args:
         project_path: Path to VB6 project file or directory
         output_dir: Output directory for translated files
-        max_workers: Maximum number of parallel workers
-        max_retries: Maximum number of retries for failed translations
+        max_workers: Maximum number of parallel workers (None = use settings)
+        max_retries: Maximum number of retries for failed translations (None = use settings)
         
     Returns:
         Dictionary with translation results and summary
@@ -878,8 +501,8 @@ def main():
     
     parser = argparse.ArgumentParser(description="VB6 to C# Translation Orchestrator (Deprecated)")
     parser.add_argument("project_path", help="Path to VB6 project file or directory")
-    parser.add_argument("--max-workers", type=int, default=3, help="Maximum number of parallel workers")
-    parser.add_argument("--max-retries", type=int, default=2, help="Maximum number of retries for failed translations")
+    parser.add_argument("--max-workers", type=int, help="Maximum number of parallel workers (default: from settings)")
+    parser.add_argument("--max-retries", type=int, help="Maximum number of retries for failed translations (default: from settings)")
     parser.add_argument("--output-dir", help="Output directory for translated files")
     parser.add_argument("--log-file", help="Path to log file (optional, creates default if not specified)")
     
@@ -897,8 +520,8 @@ def main():
     result = run_standalone_translation(
         args.project_path,
         args.output_dir,
-        args.max_workers,
-        args.max_retries
+        args.max_workers,  # None if not provided
+        args.max_retries   # None if not provided
     )
     
     if result['success']:

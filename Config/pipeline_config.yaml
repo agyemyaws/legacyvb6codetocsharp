@@ -105,16 +105,12 @@ logging:
   
 # Model Configuration
 model:
-  # Default provider (ollama or claude)
   provider: "ollama"
   
   # Model settings for different tasks
   models:
-    analysis: "codellama:latest"
     translation: "codellama:latest"
-    validation: "codellama:latest"
   
   # Generation parameters
   temperature: 0.2
-  max_tokens: 4000
   timeout: 120

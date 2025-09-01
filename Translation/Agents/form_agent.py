@@ -19,9 +19,21 @@ import re
 # Add project root to path for imports
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
+from Core.analyzer import VB6File
 from Utils.vb6_parser import VB6ParsedFile
 from Utils.prompt_templates import get_prompt_manager
 from Utils.model_interface import OllamaClient, ClaudeClient, ModelResponse
+
+
+@dataclass
+class CSharpComponent:
+    """Represents a translated C# component"""
+    name: str
+    content: str
+    file_type: str  # .cs, .Designer.cs, .resx, etc.
+    namespace: str
+    dependencies: List[str] = field(default_factory=list)
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -35,7 +47,20 @@ class CSharpForm:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
-class FormAgent:
+class BaseTranslationAgent:
+    """Base class for all translation agents"""
+    
+    def __init__(self, name: str, model_client: Union[OllamaClient, ClaudeClient]):
+        self.name = name
+        self.model_client = model_client
+        self.logger = logging.getLogger(f"{__name__}.{name}")
+    
+    def translate(self, vb6_file: VB6File) -> CSharpComponent:
+        """Translate a VB6 file to C#"""
+        raise NotImplementedError("Subclasses must implement translate method")
+
+
+class FormAgent(BaseTranslationAgent):
     """
     Form Translation Agent
     Specialized agent for translating VB6 forms (.frm files) to C# WinForms.
@@ -48,8 +73,7 @@ class FormAgent:
     """
     
     def __init__(self, model_client: Union[OllamaClient, ClaudeClient]):
-        self.model_client = model_client
-        self.logger = logging.getLogger(__name__)
+        super().__init__("FormAgent", model_client)
         self.prompt_manager = get_prompt_manager()
         
         # Initialize RAG manager for context-aware translation
@@ -60,6 +84,36 @@ class FormAgent:
         except Exception as e:
             self.rag_manager = None
             self.logger.warning(f"RAG manager not available: {e}")
+    
+    def translate(self, vb6_file: VB6File) -> CSharpComponent:
+        """Translate VB6 form to C# form - implements BaseTranslationAgent interface"""
+        self.logger.info(f"Translating form: {vb6_file.name}")
+        
+        try:
+            # Use the existing translate_form method
+            csharp_form = self.translate_form(vb6_file.parsed_data)
+            
+            if csharp_form:
+                # Convert CSharpForm to CSharpComponent for main form file
+                form_component = CSharpComponent(
+                    name=csharp_form.name,
+                    content=csharp_form.form_class_code,
+                    file_type="cs",
+                    namespace=csharp_form.namespace,
+                    metadata=csharp_form.metadata
+                )
+                
+                # Store designer code separately in metadata for later saving
+                form_component.metadata["designer_code"] = csharp_form.designer_code
+                form_component.metadata["using_statements"] = csharp_form.using_statements
+                
+                return form_component
+            else:
+                raise Exception("translate_form returned None - translation failed")
+                
+        except Exception as e:
+            self.logger.error(f"FormAgent translation failed for {vb6_file.name}: {e}")
+            raise Exception(f"Failed to translate VB6 form '{vb6_file.name}': {e}") from e
     
     def translate_form(self, parsed_form: VB6ParsedFile) -> Optional[CSharpForm]:
         """
@@ -408,6 +462,8 @@ class FormAgent:
         if sanitized and sanitized[0].isdigit():
             sanitized = f"_{sanitized}"
         return sanitized
+    
+
 
 
 def main():

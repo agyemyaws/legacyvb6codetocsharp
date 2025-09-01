@@ -3,16 +3,19 @@ VB6 Code Analyzer
 Analyzes VB6 projects to extract dependencies, metrics, and determine translation order.
 """
 
+import logging
 import os
 import re
+import sys
+from collections import defaultdict
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Set, Tuple, Optional, Any
-from dataclasses import dataclass, field
-from collections import defaultdict
-import logging
 
-from Utils.vb6_parser import VB6Parser
-from Utils.dependency_resolver import DependencyResolver
+sys.path.append(str(Path(__file__).parent.parent))
+
+from Utils.logging_config import setup_logging
+from Utils.vb6_parser import VB6Parser, VB6ParsedFile
 
 
 @dataclass
@@ -28,6 +31,7 @@ class VB6File:
     functions_count: int = 0
     classes_count: int = 0
     controls_count: int = 0  # For forms
+    parsed_data: Optional[VB6ParsedFile] = None  # Parsed file data for translation
     
     def __post_init__(self):
         """Ensure dependencies are sets"""
@@ -67,7 +71,6 @@ class VB6Analyzer:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         self.parser = VB6Parser()
-        self.dependency_resolver = DependencyResolver()
         
         # VB6 file extensions
         self.vb6_extensions = {
@@ -228,23 +231,17 @@ class VB6Analyzer:
             with open(file_path, 'r', encoding='latin-1') as file:
                 content = file.read()
             
-            # Calculate basic metrics
-            vb6_file.lines_of_code = len([line for line in content.split('\n') 
-                                         if line.strip() and not line.strip().startswith("'")])
+            # Analyze file content using VB6Parser with regex fallback
+            dependencies, complexity, functions_count, classes_count, external_deps, parsed_data = self._analyze_file_content(file_path, content)
             
-            # Parse based on file type
-            if file_type == 'form':
-                self._analyze_form(vb6_file, content)
-            elif file_type == 'class':
-                self._analyze_class(vb6_file, content)
-            elif file_type == 'module':
-                self._analyze_module(vb6_file, content)
-            
-            # Extract dependencies
-            self._extract_dependencies(vb6_file, content)
-            
-            # Calculate complexity
-            vb6_file.complexity_score = self._calculate_complexity(content)
+            # Set all metrics from analysis
+            vb6_file.dependencies = dependencies
+            vb6_file.external_dependencies = external_deps
+            vb6_file.complexity_score = complexity
+            vb6_file.functions_count = functions_count
+            vb6_file.classes_count = classes_count
+            vb6_file.lines_of_code = len(content.splitlines())
+            vb6_file.parsed_data = parsed_data  # Store parsed data for translation
             
             return vb6_file
             
@@ -252,66 +249,35 @@ class VB6Analyzer:
             self.logger.error(f"Error analyzing file {file_path}: {e}")
             return None
     
-    def _analyze_form(self, vb6_file: VB6File, content: str):
-        """Analyze VB6 form file"""
-        # Count controls
-        control_pattern = re.compile(r'Begin VB\.(\w+)', re.MULTILINE)
-        vb6_file.controls_count = len(control_pattern.findall(content))
+    def _analyze_file_content(self, file_path: Path, content: str) -> Tuple[Set[str], int, int, int, Set[str], Optional[VB6ParsedFile]]:
+        """Analyze file content using VB6Parser with regex fallback"""
+        try:
+            # Use the sophisticated parser
+            parsed_file = self.parser.parse_file(file_path)
+            if parsed_file:
+                dependencies = parsed_file.dependencies
+                external_deps = parsed_file.external_references
+                complexity = parsed_file.complexity_score
+                functions_count = len([m for m in parsed_file.methods if m.method_type in ['Function', 'Sub']])
+                classes_count = 1 if parsed_file.file_type == 'class' else 0
+                
+                return dependencies, complexity, functions_count, classes_count, external_deps, parsed_file
+        except Exception as e:
+            self.logger.warning(f"Parser failed for {file_path}, using fallback: {e}")
         
-        # Count functions and subs
-        func_pattern = re.compile(r'^\s*(Public|Private|Friend)?\s*(Sub|Function)\s+\w+', re.MULTILINE | re.IGNORECASE)
-        vb6_file.functions_count = len(func_pattern.findall(content))
+        # Fallback to regex approach
+        fallback_result = self._analyze_with_regex(content)
+        return fallback_result + (None,)  # Add None for parsed_data
     
-    def _analyze_class(self, vb6_file: VB6File, content: str):
-        """Analyze VB6 class file"""
-        vb6_file.classes_count = 1  # The file itself is a class
-        
-        # Count functions and subs
-        func_pattern = re.compile(r'^\s*(Public|Private|Friend)?\s*(Sub|Function|Property)\s+\w+', re.MULTILINE | re.IGNORECASE)
-        vb6_file.functions_count = len(func_pattern.findall(content))
-    
-    def _analyze_module(self, vb6_file: VB6File, content: str):
-        """Analyze VB6 module file"""
-        # Count functions and subs
-        func_pattern = re.compile(r'^\s*(Public|Private)?\s*(Sub|Function)\s+\w+', re.MULTILINE | re.IGNORECASE)
-        vb6_file.functions_count = len(func_pattern.findall(content))
-    
-    def _extract_dependencies(self, vb6_file: VB6File, content: str):
-        """Extract dependencies from VB6 file content"""
-        # Look for references to other modules/classes
-        patterns = [
-            re.compile(r'New\s+(\w+)', re.IGNORECASE),  # Object instantiation
-            re.compile(r'(\w+)\.', re.MULTILINE),        # Method calls
-            re.compile(r'As\s+(\w+)', re.IGNORECASE),    # Type declarations
-            re.compile(r'Dim\s+\w+\s+As\s+(\w+)', re.IGNORECASE)  # Variable declarations
-        ]
-        
+    def _analyze_with_regex(self, content: str) -> Tuple[Set[str], int, int, int, Set[str]]:
+        """Fallback regex-based analysis for dependencies, complexity, functions, and external deps"""
         dependencies = set()
-        for pattern in patterns:
-            matches = pattern.findall(content)
-            dependencies.update(matches)
-        
-        # Filter out built-in VB6 types
-        builtin_types = {'String', 'Integer', 'Long', 'Double', 'Single', 'Boolean', 
-                        'Variant', 'Object', 'Date', 'Currency', 'Byte'}
-        vb6_file.dependencies = dependencies - builtin_types
-        
-        # Look for external dependencies (COM objects, DLLs)
-        external_patterns = [
-            re.compile(r'CreateObject\("([^"]+)"\)', re.IGNORECASE),
-            re.compile(r'GetObject\("([^"]+)"\)', re.IGNORECASE),
-            re.compile(r'Declare\s+(?:Function|Sub)\s+\w+\s+Lib\s+"([^"]+)"', re.IGNORECASE)
-        ]
-        
-        for pattern in external_patterns:
-            matches = pattern.findall(content)
-            vb6_file.external_dependencies.update(matches)
-    
-    def _calculate_complexity(self, content: str) -> int:
-        """Calculate cyclomatic complexity of VB6 code"""
+        external_deps = set()
         complexity = 1  # Base complexity
+        functions_count = 0
+        classes_count = 0
         
-        # Count decision points
+        # Count decision points for complexity (same patterns as VB6Parser method)
         decision_patterns = [
             r'\bIf\b',
             r'\bElseIf\b', 
@@ -327,25 +293,48 @@ class VB6Analyzer:
             matches = re.findall(pattern, content, re.IGNORECASE)
             complexity += len(matches)
         
-        return complexity
+        # Count functions and subs
+        func_pattern = re.compile(r'^\s*(Public|Private|Friend)?\s*(Sub|Function)\s+\w+', re.MULTILINE | re.IGNORECASE)
+        functions_count = len(func_pattern.findall(content))
+        
+        # Count classes
+        class_pattern = re.compile(r'^\s*(Public|Private|Friend)?\s*(Class)\s+\w+', re.MULTILINE | re.IGNORECASE)
+        classes_count = len(class_pattern.findall(content))
+        
+        # Look for references to other modules/classes
+        patterns = [
+            re.compile(r'New\s+(\w+)', re.IGNORECASE),  # Object instantiation
+            re.compile(r'(\w+)\.', re.MULTILINE),        # Method calls
+            re.compile(r'As\s+(\w+)', re.IGNORECASE),    # Type declarations
+            re.compile(r'Dim\s+\w+\s+As\s+(\w+)', re.IGNORECASE)  # Variable declarations
+        ]
+        
+        for pattern in patterns:
+            matches = pattern.findall(content)
+            dependencies.update(matches)
+        
+        # Filter out built-in VB6 types
+        builtin_types = {'String', 'Integer', 'Long', 'Double', 'Single', 'Boolean', 
+                        'Variant', 'Object', 'Date', 'Currency', 'Byte'}
+        dependencies = dependencies - builtin_types
+        
+        # Look for external dependencies (COM objects, DLLs)
+        external_patterns = [
+            re.compile(r'CreateObject\("([^"]+)"\)', re.IGNORECASE),
+            re.compile(r'GetObject\("([^"]+)"\)', re.IGNORECASE),
+            re.compile(r'Declare\s+(?:Function|Sub)\s+\w+\s+Lib\s+"([^"]+)"', re.IGNORECASE)
+        ]
+        
+        for pattern in external_patterns:
+            matches = pattern.findall(content)
+            external_deps.update(matches)
+        
+        return dependencies, complexity, functions_count, classes_count, external_deps
     
     def _determine_translation_order(self, project: VB6Project) -> List[str]:
-        """Determine the optimal order for translating files"""
-        # Use dependency resolver to determine order
-        dependencies = {}
-        for name, file in project.files.items():
-            # Only include dependencies that exist in the project
-            project_deps = {dep for dep in file.dependencies 
-                          if dep in project.files}
-            dependencies[name] = list(project_deps)
-        
-        try:
-            return self.dependency_resolver.resolve_dependencies(dependencies)
-        except Exception as e:
-            self.logger.warning(f"Could not resolve dependencies for {project.name}: {e}")
-            # Fallback: order by complexity (simplest first)
-            return sorted(project.files.keys(), 
-                         key=lambda x: project.files[x].complexity_score)
+        """Order files by complexity (simple to complex)"""
+        return sorted(project.files.keys(), 
+                      key=lambda x: project.files[x].complexity_score)
     
     def get_analysis_summary(self, projects: List[VB6Project]) -> Dict[str, Any]:
         """Generate a summary of the analysis results"""
@@ -385,11 +374,7 @@ class VB6Analyzer:
 
 
 def main():
-    """Main function for testing the analyzer"""
-    import sys
-    from Utils.logging_config import setup_logging
-    
-    setup_logging(task_name="analysis")
+    setup_logging(level=logging.INFO, task_name="analysis")
     
     if len(sys.argv) != 2:
         print("Usage: python analyzer.py <directory_path>")
