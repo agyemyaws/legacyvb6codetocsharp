@@ -5,9 +5,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Core settings
-OLLAMA_MODEL = "codellama:latest"
+OLLAMA_MODEL = "codellama:7b"
 OLLAMA_TIMEOUT = 120
-CLAUDE_MODEL = "claude-3-5-sonnet-20241022"
+CLAUDE_MODEL = "claude-3-7-sonnet-20250219"
 CLAUDE_TIMEOUT = 120
 MODEL_CACHE_DIR = str(Path.home() / ".cache" / "legacy_code_translation")
 
@@ -37,7 +37,6 @@ class Settings:
         self.MAX_RETRIES = int(os.environ.get("MAX_RETRIES", "2"))
         
         # Project Orchestrator settings
-        self.ENABLE_VALIDATION = os.environ.get("ENABLE_VALIDATION", "false").lower() == "true"
         self.OUTPUT_BASE_DIR = os.environ.get("OUTPUT_BASE_DIR", "Data/Output")
         self.BATCH_SIZE = int(os.environ.get("BATCH_SIZE", "5"))
 
@@ -94,3 +93,5 @@ def get_model_preset(preset_name: str, provider: str = "ollama") -> dict:
         return claude_presets.get(preset_name, {})
     else:
         return ollama_presets.get(preset_name, {})
+
+ 
