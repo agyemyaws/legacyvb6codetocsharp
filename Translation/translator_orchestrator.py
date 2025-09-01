@@ -24,7 +24,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 from Core.analyzer import VB6File
 from settings import get_settings
 from Translation.Agents.business_logic_agent import BusinessLogicAgent, CSharpClass
-from Translation.Agents.form_agent import FormAgent, CSharpForm
+from Translation.Agents.form_agent import FormAgent
 from Utils.dependency_resolver import DependencyResolver
 from Utils.model_interface import OllamaClient, ClaudeClient, ModelResponse
 from Utils.prompt_templates import get_prompt_manager, get_translation_prompt
@@ -53,7 +53,7 @@ class CSharpComponent:
 @dataclass
 class TranslationTask:
     """Represents a translation task"""
-    component: VB6File  # Using VB6File from analyzer instead of VB6Component
+    component: VB6File
     status: TranslationStatus = TranslationStatus.PENDING
     assigned_agent: Optional[str] = None
     start_time: Optional[float] = None
@@ -76,128 +76,10 @@ class BaseTranslationAgent:
         raise NotImplementedError("Subclasses must implement translate method")
 
 
-class FormTranslationAgent(BaseTranslationAgent):
-    """Agent specialized in translating VB6 forms to C# WinForms/WPF"""
-    
-    def __init__(self, model_client: Union[OllamaClient, ClaudeClient]):
-        super().__init__("FormAgent", model_client)
-        
-        # Initialize the actual form agent
-        self.form_agent = FormAgent(model_client)
-    
-    def translate(self, vb6_file: VB6File) -> CSharpComponent:
-        """Translate VB6 form to C# form"""
-        self.logger.info(f"Translating form: {vb6_file.name}")
-        
-        try:
-            # Use the actual FormAgent for translation
-            csharp_form = self.form_agent.translate_form(vb6_file.parsed_data)
-            
-            if csharp_form:
-                # Convert CSharpForm to CSharpComponent for main form file
-                form_component = CSharpComponent(
-                    name=csharp_form.name,
-                    content=csharp_form.form_class_code,
-                    file_type="cs",
-                    namespace=csharp_form.namespace,
-                    metadata=csharp_form.metadata
-                )
-                
-                # Store designer code separately in metadata for later saving
-                form_component.metadata["designer_code"] = csharp_form.designer_code
-                form_component.metadata["using_statements"] = csharp_form.using_statements
-                
-                return form_component
-                
-        except Exception as e:
-            self.logger.error(f"FormAgent translation failed: {e}")
-        
-        # Fallback to placeholder implementation
-        form_content = self._generate_form_code(vb6_file)
-        
-        return CSharpComponent(
-            name=vb6_file.name,
-            content=form_content,
-            file_type="cs",
-            namespace=f"Translated.Forms",
-            metadata={"original_file": str(vb6_file.path)}
-        )
-    
-    def _generate_form_code(self, vb6_file: VB6File) -> str:
-        """Generate C# form code from VB6 file (fallback)"""
-        return f"""using System;
-using System.Windows.Forms;
-
-namespace Translated.Forms
-{{
-    public partial class {vb6_file.name} : Form
-    {{
-        public {vb6_file.name}()
-        {{
-            InitializeComponent();
-        }}
-        
-        // TODO: Implement form logic from {vb6_file.path}
-    }}
-}}"""
 
 
-class BusinessLogicTranslationAgent(BaseTranslationAgent):
-    """Agent specialized in translating VB6 modules and classes"""
-    
-    def __init__(self, model_client: Union[OllamaClient, ClaudeClient]):
-        super().__init__("BusinessLogicAgent", model_client)
-        
-        # Initialize the actual business logic agent
-        self.business_logic_agent = BusinessLogicAgent(model_client)
-    
-    def translate(self, vb6_file: VB6File) -> CSharpComponent:
-        """Translate VB6 module/class to C#"""
-        self.logger.info(f"Translating business logic: {vb6_file.name}")
-        
-        try:
-            # Use the actual BusinessLogicAgent for translation
-            csharp_class = self.business_logic_agent.translate_module(vb6_file.parsed_data)
-            
-            if csharp_class:
-                # Convert CSharpClass to CSharpComponent format expected by orchestrator
-                return CSharpComponent(
-                    name=csharp_class.name,
-                    content=csharp_class.class_code,
-                    file_type="cs",
-                    namespace=csharp_class.namespace,
-                    metadata={
-                        "original_file": str(vb6_file.path),
-                        "using_statements": csharp_class.using_statements,
-                        **csharp_class.metadata
-                    }
-                )
-        except Exception as e:
-            self.logger.error(f"BusinessLogicAgent translation failed: {e}")
-        
-        # Fallback to placeholder implementation
-        class_content = self._generate_class_code(vb6_file)
-        
-        return CSharpComponent(
-            name=vb6_file.name,
-            content=class_content,
-            file_type="cs",
-            namespace=f"Translated.Business",
-            metadata={"original_file": str(vb6_file.path)}
-        )
-    
-    def _generate_class_code(self, vb6_file: VB6File) -> str:
-        """Generate C# class code from VB6 file (fallback)"""
-        class_type = "class" if vb6_file.file_type == 'class' else "static class"
-        return f"""using System;
 
-namespace Translated.Business
-{{
-    public {class_type} {vb6_file.name}
-    {{
-        // TODO: Implement logic from {vb6_file.path}
-    }}
-}}"""
+
 
 
 class TranslationOrchestrator:
@@ -244,8 +126,8 @@ class TranslationOrchestrator:
     def _initialize_agents(self):
         """Initialize all available translation agents"""
         self.agents = {
-            "form": FormTranslationAgent(self.model_client),
-            "business_logic": BusinessLogicTranslationAgent(self.model_client)
+            "form": FormAgent(self.model_client),
+            "business_logic": BusinessLogicAgent(self.model_client)
         }
         
         self.logger.info(f"Initialized {len(self.agents)} translation agents")
