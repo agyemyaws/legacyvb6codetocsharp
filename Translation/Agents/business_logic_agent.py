@@ -169,7 +169,7 @@ class BusinessLogicAgent(BaseTranslationAgent):
             }
             
             # Get pattern suggestions from RAG manager
-            suggestions = self.rag_manager.get_pattern_suggestions(vb6_code, context_info)
+            suggestions = self.rag_manager.retrieve_similar_patterns(vb6_code, category=context_info.get("component_type"))
             
             if not suggestions:
                 return ""
@@ -177,10 +177,10 @@ class BusinessLogicAgent(BaseTranslationAgent):
             # Build context string from top patterns
             context_parts = ["Relevant translation patterns for reference:"]
             for i, match in enumerate(suggestions[:3], 1):  # Top 3 patterns
-                context_parts.append(f"\n{i}. {match.pattern.name}:")
+                context_parts.append(f"\n{i}. Pattern (Score: {match.similarity_score:.3f}):")
                 context_parts.append(f"   VB6: {match.pattern.vb6_code[:200]}...")
-                context_parts.append(f"   C#: {match.pattern.csharp_code[:200]}...")
-                context_parts.append(f"   Description: {match.pattern.description}")
+                context_parts.append(f"   C#: {match.pattern.csharp_translation[:200]}...")
+                context_parts.append(f"   Category: {match.pattern.category}, Complexity: {match.pattern.complexity}")
             
             return "\n".join(context_parts)
             
@@ -190,21 +190,14 @@ class BusinessLogicAgent(BaseTranslationAgent):
     
     def _create_enhanced_messages(self, prompt_type: str, vb6_content: str, rag_context: str) -> List[Dict[str, str]]:
         """Create messages with RAG context enhancement"""
-        # Get base messages from prompt manager
-        messages = self.prompt_manager.create_messages(prompt_type, source_code=vb6_content)
+        # Get messages from prompt manager with context parameter
+        messages = self.prompt_manager.create_messages(
+            prompt_type, 
+            source_code=vb6_content,
+            context=rag_context if rag_context else ""
+        )
         
-        if not messages:
-            return []
-        
-        # Enhance with RAG context if available
-        if rag_context:
-            # Add RAG context to the system message
-            for message in messages:
-                if message.get("role") == "system":
-                    message["content"] = f"{message['content']}\n\n{rag_context}\n\nUse these patterns as reference but adapt them to the specific VB6 code being translated."
-                    break
-        
-        return messages
+        return messages if messages else []
     
     def _clean_llm_response(self, response_content: str) -> str:
         """Clean up LLM response content"""

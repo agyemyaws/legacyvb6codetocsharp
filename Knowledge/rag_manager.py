@@ -1,67 +1,61 @@
 """
-RAG Manager - Retrieval-Augmented Generation for VB6 to C# Translation
+Simplified RAG Manager for VB6 to C# Translation using ChromaDB
 
-This module manages a knowledge base of VB6 to C# translation patterns and provides
-intelligent retrieval capabilities to enhance translation quality through examples.
+This module provides a streamlined RAG system using ChromaDB with nomic-embed-text
+embeddings for VB6-to-C# code translation pattern retrieval.
 
-Features:
-- Pattern storage and categorization
-- Similarity-based pattern retrieval
-- Category-specific searches
-- Embedding-based similarity matching
-- Integration with translation agents
+Schema:
+- id: SERIAL PRIMARY KEY
+- vb6_code: TEXT NOT NULL
+- csharp_translation: TEXT NOT NULL  
+- embedding: VECTOR(768) -- for nomic-embed-text
+- category: VARCHAR(50) -- 'form', 'class', 'method', 'data_access'
+- complexity: VARCHAR(20) -- 'simple', 'medium', 'complex'
+- created_at: TIMESTAMP DEFAULT NOW()
 """
 
 import json
 import logging
-import re
 import sys
+import time
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Tuple
-from dataclasses import dataclass, field, asdict
-from collections import defaultdict
-import hashlib
+from typing import Dict, List, Optional, Tuple, Any
+from dataclasses import dataclass
+from datetime import datetime
 
 # Add project root to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
 
-# Optional imports for advanced embedding functionality
 try:
-    import numpy as np
-    NUMPY_AVAILABLE = True
+    import chromadb
+    from chromadb.config import Settings
+    CHROMADB_AVAILABLE = True
 except ImportError:
-    NUMPY_AVAILABLE = False
-    np = None
+    CHROMADB_AVAILABLE = False
+    chromadb = None
 
 try:
-    from sentence_transformers import SentenceTransformer
-    EMBEDDINGS_AVAILABLE = True
+    from Utils.model_interface import NomicEmbeddingsClient
+    NOMIC_AVAILABLE = True
 except ImportError:
-    EMBEDDINGS_AVAILABLE = False
-    SentenceTransformer = None
+    NOMIC_AVAILABLE = False
+    NomicEmbeddingsClient = None
 
 
 @dataclass
 class CodePattern:
     """Represents a VB6 to C# translation pattern"""
-    id: str
-    name: str
-    description: str
-    category: str
+    id: Optional[int]
     vb6_code: str
-    csharp_code: str
-    tags: List[str] = field(default_factory=list)
-    complexity: str = "medium"  # low, medium, high
-    confidence: float = 1.0  # 0.0 to 1.0
-    usage_count: int = 0
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    csharp_translation: str
+    category: str  # 'form', 'class', 'method', 'data_access'
+    complexity: str  # 'simple', 'medium', 'complex'
+    embedding: Optional[List[float]] = None
+    created_at: Optional[datetime] = None
     
     def __post_init__(self):
-        """Generate ID if not provided"""
-        if not self.id:
-            # Generate hash-based ID from content
-            content = f"{self.name}_{self.vb6_code}_{self.csharp_code}"
-            self.id = hashlib.md5(content.encode()).hexdigest()[:12]
+        if self.created_at is None:
+            self.created_at = datetime.now()
 
 
 @dataclass 
@@ -70,571 +64,585 @@ class PatternMatch:
     pattern: CodePattern
     similarity_score: float
     match_reason: str
-    relevance_factors: List[str] = field(default_factory=list)
 
 
 class RAGManager:
     """
-    Manages retrieval-augmented generation for VB6 to C# translation.
+    Simplified RAG Manager using ChromaDB with nomic-embed-text embeddings.
     
-    Provides intelligent pattern storage, retrieval, and similarity matching
-    to enhance translation quality through relevant examples.
+    Provides pattern storage, retrieval, and similarity matching for VB6 to C# translation.
     """
     
-    def __init__(self, knowledge_base_path: str = None):
+    def __init__(self, 
+                 chroma_db_path: str = "./chroma_db",
+                 collection_name: str = "code_patterns"):
+        
         self.logger = logging.getLogger(__name__)
+        self.chroma_db_path = chroma_db_path
+        self.collection_name = collection_name
         
-        # Initialize paths
-        self.knowledge_base_path = Path(knowledge_base_path) if knowledge_base_path else Path(__file__).parent
-        self.patterns_dir = self.knowledge_base_path / "VB6_to_CSharp_Equivalents"
-        self.embeddings_cache_path = self.knowledge_base_path / "embeddings_cache.json"
+        # Initialize ChromaDB
+        if not CHROMADB_AVAILABLE:
+            raise ImportError("ChromaDB not available. Install with: pip install chromadb")
         
-        # Initialize storage
-        self.patterns: Dict[str, CodePattern] = {}
-        self.category_index: Dict[str, List[str]] = defaultdict(list)  # category -> pattern_ids
-        self.tag_index: Dict[str, List[str]] = defaultdict(list)  # tag -> pattern_ids
-        self.embeddings_cache: Dict[str, List[float]] = {}
+        try:
+            self.chroma_client = chromadb.PersistentClient(path=chroma_db_path)
+            self.collection = self.chroma_client.get_or_create_collection(
+                name=collection_name,
+                metadata={"description": "VB6 to C# code translation patterns"}
+            )
+            self.logger.info(f"Initialized ChromaDB at {chroma_db_path}")
+        except Exception as e:
+            self.logger.error(f"Failed to initialize ChromaDB: {e}")
+            raise
         
-        # Initialize embedding model if available
-        self.embedding_model = None
-        if EMBEDDINGS_AVAILABLE:
+        # Initialize embeddings client
+        if not NOMIC_AVAILABLE:
+            self.logger.warning("NomicEmbeddingsClient not available. Some features may not work.")
+            self.embeddings_client = None
+        else:
             try:
-                self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
-                self.logger.info("Initialized sentence transformer for embeddings")
+                self.embeddings_client = NomicEmbeddingsClient()
+                self.logger.info("Initialized Nomic embeddings client")
             except Exception as e:
-                self.logger.warning(f"Failed to initialize embedding model: {e}")
+                self.logger.warning(f"Failed to initialize Nomic embeddings: {e}")
+                self.embeddings_client = None
         
-        # Load existing patterns
-        self._load_patterns()
-        self._load_embeddings_cache()
+        # Pattern statistics
+        self.pattern_count = 0
+        self._update_stats()
     
-    def store_pattern(self, pattern: CodePattern, category: str = None) -> None:
+    def _update_stats(self):
+        """Update pattern statistics"""
+        try:
+            self.pattern_count = self.collection.count()
+        except Exception as e:
+            self.logger.warning(f"Failed to get collection count: {e}")
+            self.pattern_count = 0
+    
+    def store_pattern(self, pattern: CodePattern) -> bool:
         """
-        Store a code pattern in the knowledge base
+        Store a code pattern in ChromaDB
         
         Args:
             pattern: CodePattern to store
-            category: Optional category override
+            
+        Returns:
+            bool: True if successful, False otherwise
         """
-        
-        if category:
-            pattern.category = category
-        
-        # Store pattern
-        self.patterns[pattern.id] = pattern
-        
-        # Update indices
-        self.category_index[pattern.category].append(pattern.id)
-        for tag in pattern.tags:
-            self.tag_index[tag].append(pattern.id)
-        
-        # Generate embedding if possible
-        if self.embedding_model:
-            try:
-                # Combine VB6 and description for embedding
-                text_for_embedding = f"{pattern.description} {pattern.vb6_code}"
-                embedding = self.embedding_model.encode(text_for_embedding).tolist()
-                self.embeddings_cache[pattern.id] = embedding
-            except Exception as e:
-                self.logger.warning(f"Failed to generate embedding for pattern {pattern.id}: {e}")
-        
-        self.logger.debug(f"Stored pattern: {pattern.name} ({pattern.id})")
+        try:
+            # Generate embedding if client is available
+            embedding = None
+            if self.embeddings_client and pattern.vb6_code.strip():
+                try:
+                    # Combine VB6 code with category for better context
+                    text_for_embedding = f"Category: {pattern.category}\nVB6 Code: {pattern.vb6_code}"
+                    embedding = self.embeddings_client.embed_text(text_for_embedding)
+                    pattern.embedding = embedding
+                    self.logger.debug(f"Generated embedding with {len(embedding)} dimensions")
+                except Exception as e:
+                    self.logger.warning(f"Failed to generate embedding: {e}")
+            
+            # Prepare document for ChromaDB
+            document = f"VB6: {pattern.vb6_code}\nC#: {pattern.csharp_translation}"
+            
+            # Generate ID if not provided
+            pattern_id = pattern.id if pattern.id else int(time.time() * 1000)
+            
+            # Store in ChromaDB - let ChromaDB handle embedding dimensions automatically
+            if embedding:
+                self.collection.add(
+                    documents=[document],
+                    embeddings=[embedding],
+                    metadatas=[{
+                        "category": pattern.category,
+                        "complexity": pattern.complexity,
+                        "created_at": pattern.created_at.isoformat() if pattern.created_at else datetime.now().isoformat(),
+                        "vb6_code": pattern.vb6_code,
+                        "csharp_translation": pattern.csharp_translation
+                    }],
+                    ids=[str(pattern_id)]
+                )
+            else:
+                # Store without embedding if generation failed
+                self.collection.add(
+                    documents=[document],
+                    metadatas=[{
+                        "category": pattern.category,
+                        "complexity": pattern.complexity,
+                        "created_at": pattern.created_at.isoformat() if pattern.created_at else datetime.now().isoformat(),
+                        "vb6_code": pattern.vb6_code,
+                        "csharp_translation": pattern.csharp_translation
+                    }],
+                    ids=[str(pattern_id)]
+                )
+            
+            pattern.id = pattern_id
+            self.pattern_count += 1
+            self.logger.debug(f"Stored pattern {pattern_id} in category {pattern.category}")
+            return True
+            
+        except Exception as e:
+            error_msg = str(e)
+            if "Collection expecting embedding with dimension" in error_msg:
+                self.logger.error(f"Embedding dimension mismatch when storing pattern: {e}")
+                self.logger.info("Attempting to reset collection for correct embedding dimensions...")
+                try:
+                    # Try to reset the collection
+                    if self.reset_collection_for_new_embeddings():
+                        self.logger.info("Collection reset successful, retrying pattern storage...")
+                        # Retry storing the pattern
+                        return self.store_pattern(pattern)
+                    else:
+                        self.logger.error("Failed to reset collection, cannot store pattern")
+                        return False
+                except Exception as reset_error:
+                    self.logger.error(f"Failed to reset collection: {reset_error}")
+                    return False
+            else:
+                self.logger.error(f"Failed to store pattern: {e}")
+                return False
     
-    def retrieve_similar_patterns(self, query_code: str, top_k: int = 5, 
-                                 category: str = None, min_similarity: float = 0.1) -> List[PatternMatch]:
+    def retrieve_similar_patterns(self, 
+                                 vb6_code: str, 
+                                 top_k: int = 5,
+                                 category: str = None,
+                                 complexity: str = None) -> List[PatternMatch]:
         """
-        Retrieve patterns similar to the query code
+        Retrieve patterns similar to the given VB6 code
         
         Args:
-            query_code: VB6 code to find patterns for
+            vb6_code: VB6 code to find patterns for
             top_k: Maximum number of patterns to return
-            category: Optional category filter
-            min_similarity: Minimum similarity threshold
+            category: Optional category filter ('form', 'class', 'method', 'data_access')
+            complexity: Optional complexity filter ('simple', 'medium', 'complex')
             
         Returns:
             List of PatternMatch objects sorted by similarity
         """
         
-        matches = []
+        if not vb6_code.strip():
+            return []
         
-        # Filter patterns by category if specified
-        candidate_patterns = []
+        try:
+            # Build query filters
+            where_filter = {}
         if category:
-            pattern_ids = self.category_index.get(category, [])
-            candidate_patterns = [self.patterns[pid] for pid in pattern_ids if pid in self.patterns]
-        else:
-            candidate_patterns = list(self.patterns.values())
-        
-        # Try embedding-based similarity first
-        if self.embedding_model and self.embeddings_cache:
-            try:
-                query_embedding = self.embedding_model.encode(query_code)
-                
-                for pattern in candidate_patterns:
-                    if pattern.id in self.embeddings_cache:
-                        pattern_embedding = np.array(self.embeddings_cache[pattern.id])
-                        similarity = self._cosine_similarity(query_embedding, pattern_embedding)
-                        
-                        if similarity >= min_similarity:
+                where_filter["category"] = category
+            if complexity:
+                where_filter["complexity"] = complexity
+            
+            # Prepare query text
+            query_text = f"VB6 Code: {vb6_code}"
+            
+            # Search ChromaDB
+            results = self.collection.query(
+                query_texts=[query_text],
+                n_results=min(top_k, self.pattern_count) if self.pattern_count > 0 else top_k,
+                where=where_filter if where_filter else None
+            )
+            
+            # Convert results to PatternMatch objects
+            matches = []
+            if results and results['ids'] and results['ids'][0]:
+                for i, pattern_id in enumerate(results['ids'][0]):
+                    metadata = results['metadatas'][0][i]
+                    distance = results.get('distances', [[0.5]])[0][i] if 'distances' in results else 0.5
+                    
+                    # Convert distance to similarity (ChromaDB returns cosine distance)
+                    similarity = max(0, 1 - distance)
+                    
+                    # Create pattern object
+                    pattern = CodePattern(
+                        id=int(pattern_id),
+                        vb6_code=metadata.get('vb6_code', ''),
+                        csharp_translation=metadata.get('csharp_translation', ''),
+                        category=metadata.get('category', 'unknown'),
+                        complexity=metadata.get('complexity', 'medium'),
+                        created_at=datetime.fromisoformat(metadata.get('created_at', datetime.now().isoformat()))
+                    )
+                    
+                    # Determine match reason
+                    match_reason = "semantic_similarity"
+                    if category and metadata.get('category') == category:
+                        match_reason = "category_and_semantic_match"
+                    
                             match = PatternMatch(
                                 pattern=pattern,
                                 similarity_score=similarity,
-                                match_reason="embedding_similarity",
-                                relevance_factors=["semantic_similarity"]
+                        match_reason=match_reason
                             )
                             matches.append(match)
                             
+            return matches
+            
             except Exception as e:
-                self.logger.warning(f"Embedding-based similarity failed: {e}")
-        
-        # Fallback to text-based similarity
-        if not matches:
-            matches = self._text_based_similarity(query_code, candidate_patterns, min_similarity)
-        
-        # Sort by similarity score and return top_k
+            error_msg = str(e)
+            if "Collection expecting embedding with dimension" in error_msg:
+                self.logger.error(f"Embedding dimension mismatch: {e}")
+                self.logger.info("Attempting to reset collection for correct embedding dimensions...")
+                try:
+                    # Try to reset the collection
+                    if self.reset_collection_for_new_embeddings():
+                        self.logger.info("Collection reset successful, retrying query...")
+                        # Retry the query
+                        results = self.collection.query(
+                            query_texts=[query_text],
+                            n_results=min(top_k, self.pattern_count) if self.pattern_count > 0 else top_k,
+                            where=where_filter if where_filter else None
+                        )
+                        # Process results as normal
+                        matches = []
+                        if results and results['ids'] and results['ids'][0]:
+                            for i, pattern_id in enumerate(results['ids'][0]):
+                                metadata = results['metadatas'][0][i]
+                                distance = results.get('distances', [[0.5]])[0][i] if 'distances' in results else 0.5
+                                
+                                # Convert distance to similarity (ChromaDB returns cosine distance)
+                                similarity = max(0, 1 - distance)
+                                
+                                # Create pattern object
+                                pattern = CodePattern(
+                                    id=int(pattern_id),
+                                    vb6_code=metadata.get('vb6_code', ''),
+                                    csharp_translation=metadata.get('csharp_translation', ''),
+                                    category=metadata.get('category', 'unknown'),
+                                    complexity=metadata.get('complexity', 'medium'),
+                                    created_at=datetime.fromisoformat(metadata.get('created_at', datetime.now().isoformat()))
+                                )
+                                
+                                # Determine match reason
+                                match_reason = "semantic_similarity"
+                                if similarity > 0.8:
+                                    match_reason = "high_similarity"
+                                elif similarity > 0.6:
+                                    match_reason = "medium_similarity"
+                                else:
+                                    match_reason = "low_similarity"
+                                
+                                matches.append(PatternMatch(
+                                    pattern=pattern,
+                                    similarity_score=similarity,
+                                    match_reason=match_reason
+                                ))
+                        
+                        # Sort by similarity score
         matches.sort(key=lambda x: x.similarity_score, reverse=True)
-        return matches[:top_k]
+                        return matches
+                    else:
+                        self.logger.error("Failed to reset collection, returning empty results")
+                        return []
+                except Exception as reset_error:
+                    self.logger.error(f"Failed to reset collection: {reset_error}")
+                    return []
+            else:
+                self.logger.error(f"Failed to retrieve similar patterns: {e}")
+                return []
     
-    def search_by_category(self, category: str, query: str = None, limit: int = 10) -> List[CodePattern]:
+    def search_by_category(self, category: str, limit: int = 10) -> List[CodePattern]:
         """
-        Search patterns by category with optional query filtering
+        Search patterns by category
         
         Args:
-            category: Pattern category to search
-            query: Optional text query for filtering
+            category: Category to search ('form', 'class', 'method', 'data_access')
             limit: Maximum number of results
             
         Returns:
-            List of matching CodePattern objects
+            List of CodePattern objects
         """
-        
-        pattern_ids = self.category_index.get(category, [])
-        patterns = [self.patterns[pid] for pid in pattern_ids if pid in self.patterns]
-        
-        if query:
-            # Filter patterns by query text
-            query_lower = query.lower()
-            filtered_patterns = []
-            
-            for pattern in patterns:
-                # Search in name, description, VB6 code, and tags
-                searchable_text = f"{pattern.name} {pattern.description} {pattern.vb6_code} {' '.join(pattern.tags)}".lower()
-                if query_lower in searchable_text:
-                    filtered_patterns.append(pattern)
-            
-            patterns = filtered_patterns
-        
-        # Sort by usage count and confidence
-        patterns.sort(key=lambda p: (p.usage_count, p.confidence), reverse=True)
-        
-        return patterns[:limit]
-    
-    def search_by_tags(self, tags: List[str], match_all: bool = False, limit: int = 10) -> List[CodePattern]:
-        """
-        Search patterns by tags
-        
-        Args:
-            tags: List of tags to search for
-            match_all: If True, pattern must have all tags; if False, any tag matches
-            limit: Maximum number of results
-            
-        Returns:
-            List of matching CodePattern objects
-        """
-        
-        if match_all:
-            # Pattern must have all tags
-            pattern_ids = None
-            for tag in tags:
-                tag_pattern_ids = set(self.tag_index.get(tag, []))
-                if pattern_ids is None:
-                    pattern_ids = tag_pattern_ids
-                else:
-                    pattern_ids = pattern_ids.intersection(tag_pattern_ids)
-            
-            pattern_ids = list(pattern_ids) if pattern_ids else []
-        else:
-            # Pattern must have any tag
-            pattern_ids = set()
-            for tag in tags:
-                pattern_ids.update(self.tag_index.get(tag, []))
-            pattern_ids = list(pattern_ids)
-        
-        patterns = [self.patterns[pid] for pid in pattern_ids if pid in self.patterns]
-        patterns.sort(key=lambda p: (p.usage_count, p.confidence), reverse=True)
-        
-        return patterns[:limit]
-    
-    def get_pattern_by_id(self, pattern_id: str) -> Optional[CodePattern]:
-        """Get a specific pattern by ID"""
-        return self.patterns.get(pattern_id)
-    
-    def update_pattern_usage(self, pattern_id: str) -> None:
-        """Increment usage count for a pattern"""
-        if pattern_id in self.patterns:
-            self.patterns[pattern_id].usage_count += 1
-    
-    def get_categories(self) -> List[str]:
-        """Get all available pattern categories"""
-        return list(self.category_index.keys())
-    
-    def get_category_stats(self) -> Dict[str, int]:
-        """Get statistics for each category"""
-        return {category: len(pattern_ids) for category, pattern_ids in self.category_index.items()}
-    
-    def update_embeddings(self) -> None:
-        """
-        Update embeddings for all patterns
-        
-        This can be called when the embedding model is updated or
-        when new patterns are added in bulk.
-        """
-        
-        if not self.embedding_model:
-            self.logger.warning("No embedding model available for updating embeddings")
-            return
-        
-        updated_count = 0
-        
-        for pattern_id, pattern in self.patterns.items():
-            try:
-                text_for_embedding = f"{pattern.description} {pattern.vb6_code}"
-                embedding = self.embedding_model.encode(text_for_embedding).tolist()
-                self.embeddings_cache[pattern_id] = embedding
-                updated_count += 1
-                
-            except Exception as e:
-                self.logger.warning(f"Failed to update embedding for pattern {pattern_id}: {e}")
-        
-        # Save updated embeddings
-        self._save_embeddings_cache()
-        self.logger.info(f"Updated embeddings for {updated_count} patterns")
-    
-    def _cosine_similarity(self, a: "np.ndarray", b: "np.ndarray") -> float:
-        """Calculate cosine similarity between two vectors"""
-        if not NUMPY_AVAILABLE:
-            return 0.0
         
         try:
-            dot_product = np.dot(a, b)
-            norm_a = np.linalg.norm(a)
-            norm_b = np.linalg.norm(b)
+            results = self.collection.query(
+                query_texts=[""],  # Empty query to get all
+                n_results=limit,
+                where={"category": category}
+            )
             
-            if norm_a == 0 or norm_b == 0:
-                return 0.0
+            patterns = []
+            if results and results['ids'] and results['ids'][0]:
+                for i, pattern_id in enumerate(results['ids'][0]):
+                    metadata = results['metadatas'][0][i]
+                    
+                    pattern = CodePattern(
+                        id=int(pattern_id),
+                        vb6_code=metadata.get('vb6_code', ''),
+                        csharp_translation=metadata.get('csharp_translation', ''),
+                        category=metadata.get('category', 'unknown'),
+                        complexity=metadata.get('complexity', 'medium'),
+                        created_at=datetime.fromisoformat(metadata.get('created_at', datetime.now().isoformat()))
+                    )
+                    patterns.append(pattern)
             
-            return dot_product / (norm_a * norm_b)
-        except:
-            return 0.0
+            return patterns
+            
+        except Exception as e:
+            self.logger.error(f"Failed to search by category {category}: {e}")
+            return []
     
-    def _text_based_similarity(self, query_code: str, patterns: List[CodePattern], 
-                              min_similarity: float) -> List[PatternMatch]:
-        """Fallback text-based similarity matching"""
-        
-        matches = []
-        query_lower = query_code.lower()
-        query_tokens = set(re.findall(r'\w+', query_lower))
-        
-        for pattern in patterns:
-            # Calculate similarity based on keyword overlap
-            pattern_text = f"{pattern.vb6_code} {pattern.description}".lower()
-            pattern_tokens = set(re.findall(r'\w+', pattern_text))
+    def get_categories(self) -> List[str]:
+        """Get all available categories"""
+        try:
+            # Get all patterns to extract unique categories
+            results = self.collection.query(
+                query_texts=[""],
+                n_results=self.pattern_count if self.pattern_count > 0 else 1000
+            )
             
-            if not query_tokens or not pattern_tokens:
-                continue
+            categories = set()
+            if results and results['metadatas'] and results['metadatas'][0]:
+                for metadata in results['metadatas'][0]:
+                    categories.add(metadata.get('category', 'unknown'))
             
-            # Jaccard similarity
-            intersection = query_tokens.intersection(pattern_tokens)
-            union = query_tokens.union(pattern_tokens)
-            similarity = len(intersection) / len(union) if union else 0.0
+            return sorted(list(categories))
             
-            # Boost similarity for exact substring matches
-            if any(token in pattern_text for token in query_tokens if len(token) > 3):
-                similarity += 0.2
-            
-            # Boost similarity for VB6 keywords
-            vb6_keywords = {'dim', 'set', 'sub', 'function', 'if', 'then', 'else', 'for', 'next', 'while', 'wend'}
-            keyword_matches = query_tokens.intersection(vb6_keywords).intersection(pattern_tokens)
-            if keyword_matches:
-                similarity += len(keyword_matches) * 0.1
-            
-            if similarity >= min_similarity:
-                relevance_factors = []
-                if intersection:
-                    relevance_factors.append("keyword_overlap")
-                if keyword_matches:
-                    relevance_factors.append("vb6_syntax_match")
-                
-                match = PatternMatch(
-                    pattern=pattern,
-                    similarity_score=similarity,
-                    match_reason="text_similarity",
-                    relevance_factors=relevance_factors
-                )
-                matches.append(match)
-        
-        return matches
+        except Exception as e:
+            self.logger.error(f"Failed to get categories: {e}")
+            return ['form', 'class', 'method', 'data_access']  # Default categories
     
-    def _load_patterns(self) -> None:
-        """Load patterns from JSON files in the knowledge base directory"""
+    def get_stats(self) -> Dict[str, Any]:
+        """Get RAG manager statistics"""
         
-        if not self.patterns_dir.exists():
-            self.patterns_dir.mkdir(parents=True, exist_ok=True)
-            self.logger.info(f"Created patterns directory: {self.patterns_dir}")
-            return
+        self._update_stats()
+        
+        stats = {
+            'total_patterns': self.pattern_count,
+            'chroma_db_path': self.chroma_db_path,
+            'collection_name': self.collection_name,
+            'embeddings_available': self.embeddings_client is not None
+        }
+        
+        # Get category breakdown
+        try:
+            categories = self.get_categories()
+            category_counts = {}
+            
+            for category in categories:
+                patterns = self.search_by_category(category, limit=1000)
+                category_counts[category] = len(patterns)
+            
+            stats['categories'] = category_counts
+            
+        except Exception as e:
+            self.logger.warning(f"Failed to get category stats: {e}")
+            stats['categories'] = {}
+        
+        return stats
+    
+    def load_patterns_from_json(self, patterns_dir: str = "Knowledge/VB6_to_CSharp_Equivalents") -> int:
+        """
+        Load patterns from JSON files and store in ChromaDB
+        
+        Args:
+            patterns_dir: Directory containing pattern JSON files
+            
+        Returns:
+            int: Number of patterns loaded
+        """
+        
+        patterns_path = Path(patterns_dir)
+        if not patterns_path.exists():
+            self.logger.error(f"Patterns directory not found: {patterns_path}")
+            return 0
         
         loaded_count = 0
         
-        for json_file in self.patterns_dir.glob("*.json"):
+        # Category mapping for JSON files
+        category_mapping = {
+            'forms_patterns': 'form',
+            'business_logic_patterns': 'class',
+            'data_access_patterns': 'data_access',
+            'com_patterns': 'method',
+            'error_handling_patterns': 'method'
+        }
+        
+        for json_file in patterns_path.glob("*.json"):
             try:
                 with open(json_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                 
-                category = json_file.stem  # Use filename as category
+                # Determine category from filename
+                file_stem = json_file.stem
+                category = category_mapping.get(file_stem, 'method')
                 
-                # Handle different JSON structures
-                if isinstance(data, dict):
-                    for pattern_key, pattern_data in data.items():
-                        if isinstance(pattern_data, dict):
-                            pattern = self._create_pattern_from_dict(pattern_key, pattern_data, category)
-                            if pattern:
-                                self.store_pattern(pattern)
+                self.logger.info(f"Loading patterns from {json_file.name} as category '{category}'")
+                
+                for pattern_name, pattern_data in data.items():
+                    try:
+                        # Extract pattern information
+                        vb6_code = pattern_data.get('pattern', '')
+                        csharp_code = pattern_data.get('csharp_equivalent', '')
+                        complexity = pattern_data.get('complexity', 'medium')
+                        
+                        if not vb6_code or not csharp_code:
+                            self.logger.warning(f"Skipping incomplete pattern: {pattern_name}")
+                            continue
+                        
+                        # Create pattern object
+                        pattern = CodePattern(
+                            id=None,  # Will be auto-generated
+                            vb6_code=vb6_code,
+                            csharp_translation=csharp_code,
+                            category=category,
+                            complexity=complexity
+                        )
+                        
+                        # Store pattern
+                        if self.store_pattern(pattern):
                                 loaded_count += 1
-                elif isinstance(data, list):
-                    for i, pattern_data in enumerate(data):
-                        if isinstance(pattern_data, dict):
-                            pattern = self._create_pattern_from_dict(f"{category}_{i}", pattern_data, category)
-                            if pattern:
-                                self.store_pattern(pattern)
-                                loaded_count += 1
+                            
+                    except Exception as e:
+                        self.logger.error(f"Failed to load pattern {pattern_name}: {e}")
                 
             except Exception as e:
                 self.logger.error(f"Failed to load patterns from {json_file}: {e}")
         
-        self.logger.info(f"Loaded {loaded_count} patterns from {len(list(self.patterns_dir.glob('*.json')))} files")
+        self.logger.info(f"Loaded {loaded_count} patterns from {len(list(patterns_path.glob('*.json')))} files")
+        return loaded_count
     
-    def _create_pattern_from_dict(self, pattern_key: str, pattern_data: dict, category: str) -> Optional[CodePattern]:
-        """Create a CodePattern from dictionary data"""
-        
+    def clear_patterns(self) -> bool:
+        """Clear all patterns from ChromaDB"""
         try:
-            # Handle different JSON structures
-            if 'pattern' in pattern_data and 'csharp_equivalent' in pattern_data:
-                # Structure: {"pattern": "vb6_code", "csharp_equivalent": "cs_code", "description": "..."}
-                return CodePattern(
-                    id="",  # Will be auto-generated
-                    name=pattern_key,
-                    description=pattern_data.get('description', pattern_key),
-                    category=category,
-                    vb6_code=pattern_data['pattern'],
-                    csharp_code=pattern_data['csharp_equivalent'],
-                    tags=pattern_data.get('tags', []),
-                    complexity=pattern_data.get('complexity', 'medium'),
-                    confidence=pattern_data.get('confidence', 1.0),
-                    metadata=pattern_data.get('metadata', {})
-                )
-            elif 'vb6_code' in pattern_data and 'csharp_code' in pattern_data:
-                # Direct structure
-                return CodePattern(
-                    id=pattern_data.get('id', ""),
-                    name=pattern_data.get('name', pattern_key),
-                    description=pattern_data.get('description', pattern_key),
-                    category=pattern_data.get('category', category),
-                    vb6_code=pattern_data['vb6_code'],
-                    csharp_code=pattern_data['csharp_code'],
-                    tags=pattern_data.get('tags', []),
-                    complexity=pattern_data.get('complexity', 'medium'),
-                    confidence=pattern_data.get('confidence', 1.0),
-                    metadata=pattern_data.get('metadata', {})
-                )
-            else:
-                self.logger.warning(f"Invalid pattern structure for {pattern_key}: {pattern_data}")
-                return None
-                
-        except Exception as e:
-            self.logger.error(f"Failed to create pattern from {pattern_key}: {e}")
-            return None
-    
-    def _load_embeddings_cache(self) -> None:
-        """Load cached embeddings from disk"""
-        
-        if self.embeddings_cache_path.exists():
-            try:
-                with open(self.embeddings_cache_path, 'r', encoding='utf-8') as f:
-                    self.embeddings_cache = json.load(f)
-                self.logger.debug(f"Loaded {len(self.embeddings_cache)} cached embeddings")
-            except Exception as e:
-                self.logger.warning(f"Failed to load embeddings cache: {e}")
-    
-    def _save_embeddings_cache(self) -> None:
-        """Save embeddings cache to disk"""
-        
-        try:
-            with open(self.embeddings_cache_path, 'w', encoding='utf-8') as f:
-                json.dump(self.embeddings_cache, f, indent=2)
-        except Exception as e:
-            self.logger.warning(f"Failed to save embeddings cache: {e}")
-    
-    def save_patterns_to_file(self, category: str, file_path: str = None) -> None:
-        """
-        Save patterns from a category to a JSON file
-        
-        Args:
-            category: Category to save
-            file_path: Optional custom file path
-        """
-        
-        if file_path is None:
-            file_path = self.patterns_dir / f"{category}.json"
-        else:
-            file_path = Path(file_path)
-        
-        pattern_ids = self.category_index.get(category, [])
-        patterns_data = {}
-        
-        for pattern_id in pattern_ids:
-            if pattern_id in self.patterns:
-                pattern = self.patterns[pattern_id]
-                patterns_data[pattern.name] = {
-                    "pattern": pattern.vb6_code,
-                    "csharp_equivalent": pattern.csharp_code,
-                    "description": pattern.description,
-                    "tags": pattern.tags,
-                    "complexity": pattern.complexity,
-                    "confidence": pattern.confidence,
-                    "metadata": pattern.metadata
-                }
-        
-        # Ensure directory exists
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        try:
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(patterns_data, f, indent=2, ensure_ascii=False)
-            
-            self.logger.info(f"Saved {len(patterns_data)} patterns to {file_path}")
-        except Exception as e:
-            self.logger.error(f"Failed to save patterns to {file_path}: {e}")
-    
-    def get_pattern_suggestions(self, vb6_code: str, context: Dict[str, Any] = None) -> List[PatternMatch]:
-        """
-        Get intelligent pattern suggestions for VB6 code
-        
-        Args:
-            vb6_code: VB6 code snippet to analyze
-            context: Optional context information (file_type, component_type, etc.)
-            
-        Returns:
-            List of relevant PatternMatch objects
-        """
-        
-        suggestions = []
-        
-        # Determine likely categories based on code content
-        categories = self._infer_categories_from_code(vb6_code, context)
-        
-        # Search each relevant category
-        for category in categories:
-            category_matches = self.retrieve_similar_patterns(
-                vb6_code, 
-                top_k=3, 
-                category=category, 
-                min_similarity=0.2
+            # Delete the collection and recreate it
+            self.chroma_client.delete_collection(self.collection_name)
+            self.collection = self.chroma_client.get_or_create_collection(
+                name=self.collection_name,
+                metadata={"description": "VB6 to C# code translation patterns"}
             )
-            suggestions.extend(category_matches)
-        
-        # Remove duplicates and sort by similarity
-        seen_ids = set()
-        unique_suggestions = []
-        for suggestion in suggestions:
-            if suggestion.pattern.id not in seen_ids:
-                seen_ids.add(suggestion.pattern.id)
-                unique_suggestions.append(suggestion)
-        
-        unique_suggestions.sort(key=lambda x: x.similarity_score, reverse=True)
-        return unique_suggestions[:5]  # Top 5 suggestions
+            self.pattern_count = 0
+            self.logger.info("Cleared all patterns from ChromaDB")
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to clear patterns: {e}")
+            return False
     
-    def _infer_categories_from_code(self, vb6_code: str, context: Dict[str, Any] = None) -> List[str]:
-        """Infer likely pattern categories from VB6 code content"""
-        
-        categories = []
-        code_lower = vb6_code.lower()
-        
-        # Form-related patterns
-        if any(keyword in code_lower for keyword in ['form_load', 'command1_click', 'text1_change', 'private sub']):
-            categories.append('forms_patterns')
-        
-        # Business logic patterns  
-        if any(keyword in code_lower for keyword in ['function', 'sub', 'dim', 'if then', 'select case']):
-            categories.append('business_logic_patterns')
-        
-        # Data access patterns
-        if any(keyword in code_lower for keyword in ['adodb', 'recordset', 'connection', 'sql', 'database']):
-            categories.append('data_access_patterns')
-        
-        # COM patterns
-        if any(keyword in code_lower for keyword in ['createobject', 'set obj', 'com', 'activex']):
-            categories.append('com_patterns')
-        
-        # Error handling patterns
-        if any(keyword in code_lower for keyword in ['on error', 'err.raise', 'resume next']):
-            categories.append('error_handling_patterns')
-        
-        # If no specific patterns detected, include general patterns
-        if not categories:
-            categories = ['general_patterns', 'business_logic_patterns']
-        
-        return categories
+    def reset_collection_for_new_embeddings(self) -> bool:
+        """
+        Reset the ChromaDB collection to handle embedding dimension changes.
+        This is useful when switching embedding models or if there's a dimension mismatch.
+        """
+        try:
+            self.logger.info("Resetting ChromaDB collection for new embedding dimensions")
+            
+            # Get current patterns before clearing
+            current_patterns = []
+            try:
+                results = self.collection.query(
+                    query_texts=[""],
+                    n_results=self.pattern_count if self.pattern_count > 0 else 1000
+                )
+                
+                if results and results['ids'] and results['ids'][0]:
+                    for i, pattern_id in enumerate(results['ids'][0]):
+                        metadata = results['metadatas'][0][i]
+                        pattern = CodePattern(
+                            id=int(pattern_id),
+                            vb6_code=metadata.get('vb6_code', ''),
+                            csharp_translation=metadata.get('csharp_translation', ''),
+                            category=metadata.get('category', 'unknown'),
+                            complexity=metadata.get('complexity', 'medium'),
+                            created_at=datetime.fromisoformat(metadata.get('created_at', datetime.now().isoformat()))
+                        )
+                        current_patterns.append(pattern)
+                        
+                self.logger.info(f"Backing up {len(current_patterns)} patterns")
+            except Exception as e:
+                self.logger.warning(f"Could not backup existing patterns: {e}")
+            
+            # Clear and recreate collection
+            if self.clear_patterns():
+                # Restore patterns with new embeddings
+                restored_count = 0
+                for pattern in current_patterns:
+                    if self.store_pattern(pattern):
+                        restored_count += 1
+                
+                self.logger.info(f"Restored {restored_count}/{len(current_patterns)} patterns with new embeddings")
+                return True
+            
+            return False
+            
+        except Exception as e:
+            self.logger.error(f"Failed to reset collection: {e}")
+            return False
 
 
 def main():
-    """Test the RAGManager"""
+    """Test the RAG Manager"""
     import argparse
     
     parser = argparse.ArgumentParser(description="RAG Manager for VB6 to C# Translation")
-    parser.add_argument("--action", choices=['load', 'search', 'categories', 'stats'], 
+    parser.add_argument("--action", choices=['load', 'search', 'categories', 'stats', 'clear', 'reset'], 
                        default='stats', help="Action to perform")
-    parser.add_argument("--query", help="Search query")
+    parser.add_argument("--query", help="Search query (VB6 code)")
     parser.add_argument("--category", help="Category filter")
-    parser.add_argument("--knowledge-base", help="Knowledge base directory path")
+    parser.add_argument("--patterns-dir", help="Patterns directory path", 
+                       default="Knowledge/VB6_to_CSharp_Equivalents")
     
     args = parser.parse_args()
     
     # Setup logging
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
     
     # Initialize RAG manager
-    rag_manager = RAGManager(args.knowledge_base)
+    rag_manager = RAGManager()
     
     if args.action == 'stats':
         print("\n=== RAG Manager Statistics ===")
-        print(f"Total patterns: {len(rag_manager.patterns)}")
-        print(f"Categories: {len(rag_manager.get_categories())}")
-        print(f"Embeddings cached: {len(rag_manager.embeddings_cache)}")
+        stats = rag_manager.get_stats()
         
-        print("\nCategory breakdown:")
-        for category, count in rag_manager.get_category_stats().items():
+        print(f"Total patterns: {stats['total_patterns']}")
+        print(f"ChromaDB path: {stats['chroma_db_path']}")
+        print(f"Collection: {stats['collection_name']}")
+        print(f"Embeddings available: {stats['embeddings_available']}")
+        
+        print(f"\nCategory breakdown:")
+        for category, count in stats.get('categories', {}).items():
             print(f"  {category}: {count} patterns")
     
     elif args.action == 'categories':
         print("\n=== Available Categories ===")
-        for category in sorted(rag_manager.get_categories()):
+        categories = rag_manager.get_categories()
+        for category in categories:
             print(f"  {category}")
     
     elif args.action == 'search' and args.query:
         print(f"\n=== Search Results for: {args.query} ===")
-        matches = rag_manager.retrieve_similar_patterns(args.query, category=args.category)
+        matches = rag_manager.retrieve_similar_patterns(
+            args.query, 
+            top_k=3, 
+            category=args.category
+        )
         
         for i, match in enumerate(matches, 1):
-            print(f"\n{i}. {match.pattern.name} (similarity: {match.similarity_score:.3f})")
+            print(f"\n{i}. Pattern ID: {match.pattern.id}")
+            print(f"   Similarity: {match.similarity_score:.3f}")
             print(f"   Category: {match.pattern.category}")
-            print(f"   Description: {match.pattern.description}")
+            print(f"   Complexity: {match.pattern.complexity}")
+            print(f"   Match Reason: {match.match_reason}")
             print(f"   VB6: {match.pattern.vb6_code[:100]}...")
-            print(f"   C#: {match.pattern.csharp_code[:100]}...")
+            print(f"   C#: {match.pattern.csharp_translation[:100]}...")
     
     elif args.action == 'load':
-        print("\n=== Reloading Patterns ===")
-        rag_manager._load_patterns()
-        print(f"Loaded {len(rag_manager.patterns)} patterns")
+        print(f"\n=== Loading Patterns from {args.patterns_dir} ===")
+        count = rag_manager.load_patterns_from_json(args.patterns_dir)
+        print(f"Loaded {count} patterns")
+    
+    elif args.action == 'clear':
+        print("\n=== Clearing All Patterns ===")
+        if rag_manager.clear_patterns():
+            print("Successfully cleared all patterns")
+        else:
+            print("Failed to clear patterns")
+    
+    elif args.action == 'reset':
+        print("\n=== Resetting Collection for New Embeddings ===")
+        if rag_manager.reset_collection_for_new_embeddings():
+            print("Successfully reset collection with new embeddings")
+        else:
+            print("Failed to reset collection")
 
 
 if __name__ == "__main__":

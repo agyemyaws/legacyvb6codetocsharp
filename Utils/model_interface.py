@@ -6,6 +6,8 @@ from pathlib import Path
 from ollama import Client
 from anthropic import Anthropic
 import os
+import requests
+import json
 
 
 sys.path.append(str(Path(__file__).parent.parent))
@@ -86,6 +88,64 @@ class OllamaClient:
             )
 
 
+class NomicEmbeddingsClient:
+    """Client for Nomic embeddings via Ollama"""
+    
+    def __init__(self, base_url: str = None):
+        settings = get_settings()
+        self.base_url = base_url or settings.OLLAMA_BASE_URL
+        self.model = "nomic-embed-text:latest"
+        self.logger = logging.getLogger(__name__)
+        self._test_connection()
+    
+    def _test_connection(self) -> None:
+        """Test connection to Ollama and check if nomic-embed-text is available"""
+        try:
+            response = requests.get(f"{self.base_url}/api/tags", timeout=5)
+            if response.status_code == 200:
+                models = [model["name"] for model in response.json().get("models", [])]
+                if self.model not in models:
+                    self.logger.warning(f"Model {self.model} not found. Available: {models}")
+                    self.logger.info("Please run: ollama pull nomic-embed-text")
+                else:
+                    self.logger.info(f"Connected to Ollama with embedding model: {self.model}")
+            else:
+                self.logger.warning("Ollama connection test failed")
+        except Exception as e:
+            self.logger.warning(f"Ollama connection error: {e}")
+    
+    def embed_text(self, text: str) -> List[float]:
+        """Get embedding for a single text"""
+        try:
+            response = requests.post(
+                f"{self.base_url}/api/embeddings",
+                json={
+                    "model": self.model,
+                    "prompt": text
+                },
+                timeout=30
+            )
+            response.raise_for_status()
+            embedding = response.json().get("embedding", [])
+            
+            if not embedding:
+                raise ValueError("Empty embedding received")
+            
+            return embedding
+            
+        except Exception as e:
+            self.logger.error(f"Embedding generation failed: {e}")
+            raise
+    
+    def embed_batch(self, texts: List[str]) -> List[List[float]]:
+        """Get embeddings for multiple texts"""
+        embeddings = []
+        for text in texts:
+            embedding = self.embed_text(text)
+            embeddings.append(embedding)
+        return embeddings
+
+
 class ClaudeClient:
     """Client for Anthropic's Claude API"""
     
@@ -146,32 +206,41 @@ class ClaudeClient:
             if system_message:
                 request_params["system"] = system_message
             
-            response = self.client.messages.create(**request_params)
-            
-            # Extract content from response
+            # Use streaming for all requests to avoid timeout issues
             content = ""
-            if response.content:
-                if isinstance(response.content, list):
-                    content = "".join([block.text for block in response.content if hasattr(block, 'text')])
-                else:
-                    content = str(response.content)
+            response = None
+            
+            # Stream the response
+            for chunk in self.client.messages.stream(**request_params):
+                if hasattr(chunk, 'type'):
+                    if chunk.type == "content_block_delta" and hasattr(chunk, 'delta'):
+                        content += chunk.delta.text
+                    elif chunk.type == "message_stop":
+                        response = chunk.message
+                        break
+                elif hasattr(chunk, 'content_block_delta'):
+                    # Alternative chunk format
+                    content += chunk.content_block_delta.delta.text
+                elif hasattr(chunk, 'message'):
+                    response = chunk.message
+                    break
             
             return ModelResponse(
                 content=content,
                 model=get_settings().CLAUDE_MODEL,
                 provider="claude",
                 usage={
-                    'input_tokens': response.usage.input_tokens if response.usage else 0,
-                    'output_tokens': response.usage.output_tokens if response.usage else 0,
-                    'total_tokens': (response.usage.input_tokens + response.usage.output_tokens) if response.usage else 0
+                    'input_tokens': response.usage.input_tokens if response and response.usage else 0,
+                    'output_tokens': response.usage.output_tokens if response and response.usage else 0,
+                    'total_tokens': (response.usage.input_tokens + response.usage.output_tokens) if response and response.usage else 0
                 },
                 metadata={
-                    'id': response.id,
-                    'type': response.type,
-                    'role': response.role,
-                    'model': response.model,
-                    'stop_reason': response.stop_reason,
-                    'stop_sequence': response.stop_sequence,
+                    'id': response.id if response else None,
+                    'type': response.type if response else None,
+                    'role': response.role if response else None,
+                    'model': response.model if response else get_settings().CLAUDE_MODEL,
+                    'stop_reason': response.stop_reason if response else None,
+                    'stop_sequence': response.stop_sequence if response else None,
                 }
             )
             

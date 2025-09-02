@@ -115,6 +115,8 @@ WINFORMS BEST PRACTICES:
 
 {source_code}
 
+{context}
+
 Generate complete, production-ready C# code in this exact format:
 
 <!-- FORM_CLASS_START -->
@@ -348,6 +350,8 @@ CRITICAL REQUIREMENTS:
 
 {source_code}
 
+{context}
+
 Requirements:
 - Follow ALL conversion rules exactly
 - Use modern ADO.NET (OleDbConnection, OleDbCommand) instead of COM objects
@@ -569,6 +573,8 @@ CRITICAL REQUIREMENTS:
 
 {source_code}
 
+{context}
+
 CRITICAL REQUIREMENTS:
 - Follow ALL conversion rules exactly
 - Use modern ADO.NET (OleDbConnection, OleDbCommand) instead of COM objects
@@ -672,6 +678,8 @@ Always provide clean, readable, and maintainable C# code.""",
 
 {source_code}
 
+{context}
+
 Provide only the translated C# code without explanations.""",
                 
                 description="Standard Fortran to C# translation prompt"
@@ -718,6 +726,8 @@ Always provide clean, secure, and maintainable Entity Framework code.""",
 
 {source_code}
 
+{context}
+
 Provide the translated C# code with:
 1. Entity classes
 2. DbContext class
@@ -745,6 +755,8 @@ Provide clear, actionable insights.""",
                 user_template="""Analyze the following code for translation:
 
 {source_code}
+
+{context}
 
 Provide a structured analysis covering complexity, dependencies, challenges, and recommendations.""",
                 
@@ -806,15 +818,15 @@ def get_translation_prompt(source_language: str, target_language: str = "csharp"
     return get_prompt_manager().get_prompt(prompt_type)
 
 
-def create_translation_messages(source_code: str, source_language: str, target_language: str = "csharp") -> Optional[List[Dict[str, str]]]:
+def create_translation_messages(source_code: str, source_language: str, target_language: str = "csharp", context: str = "") -> Optional[List[Dict[str, str]]]:
     """Create messages for code translation"""
     prompt_type = f"{source_language.lower()}_to_{target_language.lower()}"
-    return get_prompt_manager().create_messages(prompt_type, source_code=source_code)
+    return get_prompt_manager().create_messages(prompt_type, source_code=source_code, context=context)
 
 
-def create_analysis_messages(source_code: str) -> Optional[List[Dict[str, str]]]:
+def create_analysis_messages(source_code: str, context: str = "") -> Optional[List[Dict[str, str]]]:
     """Create messages for code analysis"""
-    return get_prompt_manager().create_messages("code_analysis", source_code=source_code)
+    return get_prompt_manager().create_messages("code_analysis", source_code=source_code, context=context)
 
 
 # Example usage

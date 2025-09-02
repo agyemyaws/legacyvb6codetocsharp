@@ -4,8 +4,17 @@
     "csharp_equivalent": "string strName;\nint intAge;\ndouble dblSalary;\nbool blnActive;\nobject varData;",
     "description": "Basic variable declarations with VB6 to C# type mappings",
     "tags": ["variables", "declarations", "types", "dim"],
-    "complexity": "low",
+    "complexity": "simple",
     "confidence": 1.0
+  },
+
+  "complex_class_with_properties": {
+    "pattern": "Private m_ID As Long\nPrivate m_Name As String\nPrivate m_Email As String\nPrivate m_CreatedDate As Date\nPrivate m_IsActive As Boolean\n\nPublic Property Get ID() As Long\n    ID = m_ID\nEnd Property\n\nPublic Property Let ID(ByVal vNewValue As Long)\n    m_ID = vNewValue\nEnd Property\n\nPublic Property Get Name() As String\n    Name = m_Name\nEnd Property\n\nPublic Property Let Name(ByVal vNewValue As String)\n    If Len(vNewValue) > 0 And Len(vNewValue) <= 50 Then\n        m_Name = vNewValue\n    Else\n        Err.Raise vbObjectError + 1, \"User\", \"Name must be 1-50 characters\"\n    End If\nEnd Property\n\nPublic Property Get Email() As String\n    Email = m_Email\nEnd Property\n\nPublic Property Let Email(ByVal vNewValue As String)\n    If InStr(vNewValue, \"@\") > 0 Then\n        m_Email = vNewValue\n    Else\n        Err.Raise vbObjectError + 2, \"User\", \"Invalid email format\"\n    End If\nEnd Property\n\nPublic Function GetDisplayName() As String\n    GetDisplayName = m_Name & \" (\" & m_Email & \")\"\nEnd Function\n\nPublic Sub Activate()\n    m_IsActive = True\n    m_CreatedDate = Now\nEnd Sub",
+    "csharp_equivalent": "public class User\n{\n    private long _id;\n    private string _name;\n    private string _email;\n    private DateTime _createdDate;\n    private bool _isActive;\n\n    public long ID\n    {\n        get { return _id; }\n        set { _id = value; }\n    }\n\n    public string Name\n    {\n        get { return _name; }\n        set\n        {\n            if (string.IsNullOrEmpty(value) || value.Length > 50)\n            {\n                throw new ArgumentException(\"Name must be 1-50 characters\", nameof(value));\n            }\n            _name = value;\n        }\n    }\n\n    public string Email\n    {\n        get { return _email; }\n        set\n        {\n            if (string.IsNullOrEmpty(value) || !value.Contains(\"@\"))\n            {\n                throw new ArgumentException(\"Invalid email format\", nameof(value));\n            }\n            _email = value;\n        }\n    }\n\n    public DateTime CreatedDate\n    {\n        get { return _createdDate; }\n        private set { _createdDate = value; }\n    }\n\n    public bool IsActive\n    {\n        get { return _isActive; }\n        private set { _isActive = value; }\n    }\n\n    public string GetDisplayName()\n    {\n        return $\"{_name} ({_email})\";\n    }\n\n    public void Activate()\n    {\n        _isActive = true;\n        _createdDate = DateTime.Now;\n    }\n}",
+    "description": "Complex class with validated properties and business logic methods",
+    "tags": ["class", "properties", "validation", "encapsulation", "business-logic"],
+    "complexity": "complex",
+    "confidence": 0.95
   },
 
   "function_declaration": {
