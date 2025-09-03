@@ -1,244 +1,316 @@
-{
-  "variable_declarations": {
-    "pattern": "Dim strName As String\nDim intAge As Integer\nDim dblSalary As Double\nDim blnActive As Boolean\nDim varData As Variant",
-    "csharp_equivalent": "string strName;\nint intAge;\ndouble dblSalary;\nbool blnActive;\nobject varData;",
-    "description": "Basic variable declarations with VB6 to C# type mappings",
-    "tags": ["variables", "declarations", "types", "dim"],
-    "complexity": "simple",
-    "confidence": 1.0
-  },
+  {
+    "variable_declarations": {
+      "pattern": "Dim strName As String\nDim intAge As Integer\nDim dblSalary As Double\nDim blnActive As Boolean\nDim varData As Variant",
+      "csharp_equivalent": "string strName;\nint intAge;\ndouble dblSalary;\nbool blnActive;\nobject varData;",
+      "description": "Basic variable declarations with VB6 to C# type mappings",
+      "tags": ["variables", "declarations", "types", "dim"],
+      "complexity": "simple",
+      "confidence": 1.0
+    },
 
-  "complex_class_with_properties": {
-    "pattern": "Private m_ID As Long\nPrivate m_Name As String\nPrivate m_Email As String\nPrivate m_CreatedDate As Date\nPrivate m_IsActive As Boolean\n\nPublic Property Get ID() As Long\n    ID = m_ID\nEnd Property\n\nPublic Property Let ID(ByVal vNewValue As Long)\n    m_ID = vNewValue\nEnd Property\n\nPublic Property Get Name() As String\n    Name = m_Name\nEnd Property\n\nPublic Property Let Name(ByVal vNewValue As String)\n    If Len(vNewValue) > 0 And Len(vNewValue) <= 50 Then\n        m_Name = vNewValue\n    Else\n        Err.Raise vbObjectError + 1, \"User\", \"Name must be 1-50 characters\"\n    End If\nEnd Property\n\nPublic Property Get Email() As String\n    Email = m_Email\nEnd Property\n\nPublic Property Let Email(ByVal vNewValue As String)\n    If InStr(vNewValue, \"@\") > 0 Then\n        m_Email = vNewValue\n    Else\n        Err.Raise vbObjectError + 2, \"User\", \"Invalid email format\"\n    End If\nEnd Property\n\nPublic Function GetDisplayName() As String\n    GetDisplayName = m_Name & \" (\" & m_Email & \")\"\nEnd Function\n\nPublic Sub Activate()\n    m_IsActive = True\n    m_CreatedDate = Now\nEnd Sub",
-    "csharp_equivalent": "public class User\n{\n    private long _id;\n    private string _name;\n    private string _email;\n    private DateTime _createdDate;\n    private bool _isActive;\n\n    public long ID\n    {\n        get { return _id; }\n        set { _id = value; }\n    }\n\n    public string Name\n    {\n        get { return _name; }\n        set\n        {\n            if (string.IsNullOrEmpty(value) || value.Length > 50)\n            {\n                throw new ArgumentException(\"Name must be 1-50 characters\", nameof(value));\n            }\n            _name = value;\n        }\n    }\n\n    public string Email\n    {\n        get { return _email; }\n        set\n        {\n            if (string.IsNullOrEmpty(value) || !value.Contains(\"@\"))\n            {\n                throw new ArgumentException(\"Invalid email format\", nameof(value));\n            }\n            _email = value;\n        }\n    }\n\n    public DateTime CreatedDate\n    {\n        get { return _createdDate; }\n        private set { _createdDate = value; }\n    }\n\n    public bool IsActive\n    {\n        get { return _isActive; }\n        private set { _isActive = value; }\n    }\n\n    public string GetDisplayName()\n    {\n        return $\"{_name} ({_email})\";\n    }\n\n    public void Activate()\n    {\n        _isActive = true;\n        _createdDate = DateTime.Now;\n    }\n}",
-    "description": "Complex class with validated properties and business logic methods",
-    "tags": ["class", "properties", "validation", "encapsulation", "business-logic"],
-    "complexity": "complex",
-    "confidence": 0.95
-  },
+    "complex_class_with_properties": {
+      "pattern": "Private m_ID As Long\nPrivate m_Name As String\nPrivate m_Email As String\nPrivate m_CreatedDate As Date\nPrivate m_IsActive As Boolean\n\nPublic Property Get ID() As Long\n    ID = m_ID\nEnd Property\n\nPublic Property Let ID(ByVal vNewValue As Long)\n    m_ID = vNewValue\nEnd Property\n\nPublic Property Get Name() As String\n    Name = m_Name\nEnd Property\n\nPublic Property Let Name(ByVal vNewValue As String)\n    If Len(vNewValue) > 0 And Len(vNewValue) <= 50 Then\n        m_Name = vNewValue\n    Else\n        Err.Raise vbObjectError + 1, \"User\", \"Name must be 1-50 characters\"\n    End If\nEnd Property\n\nPublic Property Get Email() As String\n    Email = m_Email\nEnd Property\n\nPublic Property Let Email(ByVal vNewValue As String)\n    If InStr(vNewValue, \"@\") > 0 Then\n        m_Email = vNewValue\n    Else\n        Err.Raise vbObjectError + 2, \"User\", \"Invalid email format\"\n    End If\nEnd Property\n\nPublic Function GetDisplayName() As String\n    GetDisplayName = m_Name & \" (\" & m_Email & \")\"\nEnd Function\n\nPublic Sub Activate()\n    m_IsActive = True\n    m_CreatedDate = Now\nEnd Sub",
+      "csharp_equivalent": "public class User\n{\n    private long _id;\n    private string _name;\n    private string _email;\n    private DateTime _createdDate;\n    private bool _isActive;\n\n    public long ID\n    {\n        get { return _id; }\n        set { _id = value; }\n    }\n\n    public string Name\n    {\n        get { return _name; }\n        set\n        {\n            if (string.IsNullOrEmpty(value) || value.Length > 50)\n            {\n                throw new ArgumentException(\"Name must be 1-50 characters\", nameof(value));\n            }\n            _name = value;\n        }\n    }\n\n    public string Email\n    {\n        get { return _email; }\n        set\n        {\n            if (string.IsNullOrEmpty(value) || !value.Contains(\"@\"))\n            {\n                throw new ArgumentException(\"Invalid email format\", nameof(value));\n            }\n            _email = value;\n        }\n    }\n\n    public DateTime CreatedDate\n    {\n        get { return _createdDate; }\n        private set { _createdDate = value; }\n    }\n\n    public bool IsActive\n    {\n        get { return _isActive; }\n        private set { _isActive = value; }\n    }\n\n    public string GetDisplayName()\n    {\n        return $\"{_name} ({_email})\";\n    }\n\n    public void Activate()\n    {\n        _isActive = true;\n        _createdDate = DateTime.Now;\n    }\n}",
+      "description": "Complex class with validated properties and business logic methods",
+      "tags": ["class", "properties", "validation", "encapsulation", "business-logic"],
+      "complexity": "complex",
+      "confidence": 0.95
+    },
 
-  "function_declaration": {
-    "pattern": "Public Function CalculateTotal(ByVal price As Double, ByVal quantity As Integer) As Double\n    CalculateTotal = price * quantity\nEnd Function",
-    "csharp_equivalent": "public double CalculateTotal(double price, int quantity)\n{\n    return price * quantity;\n}",
-    "description": "Function declaration with parameters and return value",
-    "tags": ["function", "parameters", "return", "byval"],
-    "complexity": "low",
-    "confidence": 1.0
-  },
+    "function_declaration": {
+      "pattern": "Public Function CalculateTotal(ByVal price As Double, ByVal quantity As Integer) As Double\n    CalculateTotal = price * quantity\nEnd Function",
+      "csharp_equivalent": "public double CalculateTotal(double price, int quantity)\n{\n    return price * quantity;\n}",
+      "description": "Function declaration with parameters and return value",
+      "tags": ["function", "parameters", "return", "byval"],
+      "complexity": "low",
+      "confidence": 1.0
+    },
 
-  "subroutine_declaration": {
-    "pattern": "Public Sub DisplayMessage(ByVal message As String)\n    MsgBox message\nEnd Sub",
-    "csharp_equivalent": "public void DisplayMessage(string message)\n{\n    MessageBox.Show(message);\n}",
-    "description": "Subroutine declaration with void return type",
-    "tags": ["subroutine", "sub", "void", "parameters"],
-    "complexity": "low",
-    "confidence": 1.0
-  },
+    "subroutine_declaration": {
+      "pattern": "Public Sub DisplayMessage(ByVal message As String)\n    MsgBox message\nEnd Sub",
+      "csharp_equivalent": "public void DisplayMessage(string message)\n{\n    MessageBox.Show(message);\n}",
+      "description": "Subroutine declaration with void return type",
+      "tags": ["subroutine", "sub", "void", "parameters"],
+      "complexity": "low",
+      "confidence": 1.0
+    },
 
-  "if_then_else": {
-    "pattern": "If age >= 18 Then\n    status = \"Adult\"\nElseIf age >= 13 Then\n    status = \"Teen\"\nElse\n    status = \"Child\"\nEnd If",
-    "csharp_equivalent": "if (age >= 18)\n{\n    status = \"Adult\";\n}\nelse if (age >= 13)\n{\n    status = \"Teen\";\n}\nelse\n{\n    status = \"Child\";\n}",
-    "description": "If-Then-Else conditional statements",
-    "tags": ["conditional", "if", "then", "else", "elseif"],
-    "complexity": "low",
-    "confidence": 1.0
-  },
+    "if_then_else": {
+      "pattern": "If age >= 18 Then\n    status = \"Adult\"\nElseIf age >= 13 Then\n    status = \"Teen\"\nElse\n    status = \"Child\"\nEnd If",
+      "csharp_equivalent": "if (age >= 18)\n{\n    status = \"Adult\";\n}\nelse if (age >= 13)\n{\n    status = \"Teen\";\n}\nelse\n{\n    status = \"Child\";\n}",
+      "description": "If-Then-Else conditional statements",
+      "tags": ["conditional", "if", "then", "else", "elseif"],
+      "complexity": "low",
+      "confidence": 1.0
+    },
 
-  "select_case": {
-    "pattern": "Select Case dayOfWeek\n    Case 1\n        dayName = \"Monday\"\n    Case 2\n        dayName = \"Tuesday\"\n    Case 3 To 5\n        dayName = \"Midweek\"\n    Case Else\n        dayName = \"Weekend\"\nEnd Select",
-    "csharp_equivalent": "switch (dayOfWeek)\n{\n    case 1:\n        dayName = \"Monday\";\n        break;\n    case 2:\n        dayName = \"Tuesday\";\n        break;\n    case 3:\n    case 4:\n    case 5:\n        dayName = \"Midweek\";\n        break;\n    default:\n        dayName = \"Weekend\";\n        break;\n}",
-    "description": "Select Case statement converted to switch-case",
-    "tags": ["select", "case", "switch", "break", "default"],
-    "complexity": "medium",
-    "confidence": 1.0
-  },
+    "select_case": {
+      "pattern": "Select Case dayOfWeek\n    Case 1\n        dayName = \"Monday\"\n    Case 2\n        dayName = \"Tuesday\"\n    Case 3 To 5\n        dayName = \"Midweek\"\n    Case Else\n        dayName = \"Weekend\"\nEnd Select",
+      "csharp_equivalent": "switch (dayOfWeek)\n{\n    case 1:\n        dayName = \"Monday\";\n        break;\n    case 2:\n        dayName = \"Tuesday\";\n        break;\n    case 3:\n    case 4:\n    case 5:\n        dayName = \"Midweek\";\n        break;\n    default:\n        dayName = \"Weekend\";\n        break;\n}",
+      "description": "Select Case statement converted to switch-case",
+      "tags": ["select", "case", "switch", "break", "default"],
+      "complexity": "medium",
+      "confidence": 1.0
+    },
 
-  "for_loop": {
-    "pattern": "For i = 1 To 10\n    total = total + i\nNext i\n\nFor i = 10 To 1 Step -1\n    Debug.Print i\nNext",
-    "csharp_equivalent": "for (int i = 1; i <= 10; i++)\n{\n    total = total + i;\n}\n\nfor (int i = 10; i >= 1; i--)\n{\n    Console.WriteLine(i);\n}",
-    "description": "For loops with step values",
-    "tags": ["for", "loop", "step", "next", "iteration"],
-    "complexity": "medium",
-    "confidence": 1.0
-  },
+    "for_loop": {
+      "pattern": "For i = 1 To 10\n    total = total + i\nNext i\n\nFor i = 10 To 1 Step -1\n    Debug.Print i\nNext",
+      "csharp_equivalent": "for (int i = 1; i <= 10; i++)\n{\n    total = total + i;\n}\n\nfor (int i = 10; i >= 1; i--)\n{\n    Console.WriteLine(i);\n}",
+      "description": "For loops with step values",
+      "tags": ["for", "loop", "step", "next", "iteration"],
+      "complexity": "medium",
+      "confidence": 1.0
+    },
 
-  "for_each_loop": {
-    "pattern": "Dim item As Variant\nFor Each item In collection\n    Debug.Print item\nNext item",
-    "csharp_equivalent": "foreach (var item in collection)\n{\n    Console.WriteLine(item);\n}",
-    "description": "For Each loop iteration over collections",
-    "tags": ["foreach", "collection", "iteration", "variant"],
-    "complexity": "medium",
-    "confidence": 1.0
-  },
+    "for_each_loop": {
+      "pattern": "Dim item As Variant\nFor Each item In collection\n    Debug.Print item\nNext item",
+      "csharp_equivalent": "foreach (var item in collection)\n{\n    Console.WriteLine(item);\n}",
+      "description": "For Each loop iteration over collections",
+      "tags": ["foreach", "collection", "iteration", "variant"],
+      "complexity": "medium",
+      "confidence": 1.0
+    },
 
-  "while_loop": {
-    "pattern": "While condition = True\n    ' Do something\n    counter = counter + 1\n    If counter > 100 Then Exit While\nWend",
-    "csharp_equivalent": "while (condition == true)\n{\n    // Do something\n    counter = counter + 1;\n    if (counter > 100) break;\n}",
-    "description": "While loop with exit condition",
-    "tags": ["while", "loop", "condition", "break", "exit"],
-    "complexity": "medium",
-    "confidence": 1.0
-  },
+    "while_loop": {
+      "pattern": "While condition = True\n    ' Do something\n    counter = counter + 1\n    If counter > 100 Then Exit While\nWend",
+      "csharp_equivalent": "while (condition == true)\n{\n    // Do something\n    counter = counter + 1;\n    if (counter > 100) break;\n}",
+      "description": "While loop with exit condition",
+      "tags": ["while", "loop", "condition", "break", "exit"],
+      "complexity": "medium",
+      "confidence": 1.0
+    },
 
-  "do_loop": {
-    "pattern": "Do While counter < 10\n    counter = counter + 1\nLoop\n\nDo\n    counter = counter + 1\nLoop Until counter >= 10",
-    "csharp_equivalent": "while (counter < 10)\n{\n    counter = counter + 1;\n}\n\ndo\n{\n    counter = counter + 1;\n} while (counter < 10);",
-    "description": "Do-While and Do-Until loops",
-    "tags": ["do", "while", "until", "loop"],
-    "complexity": "medium",
-    "confidence": 1.0
-  },
+    "do_loop": {
+      "pattern": "Do While counter < 10\n    counter = counter + 1\nLoop\n\nDo\n    counter = counter + 1\nLoop Until counter >= 10",
+      "csharp_equivalent": "while (counter < 10)\n{\n    counter = counter + 1;\n}\n\ndo\n{\n    counter = counter + 1;\n} while (counter < 10);",
+      "description": "Do-While and Do-Until loops",
+      "tags": ["do", "while", "until", "loop"],
+      "complexity": "medium",
+      "confidence": 1.0
+    },
 
-  "error_handling": {
-    "pattern": "On Error GoTo ErrorHandler\n' Some code that might fail\nresult = 10 / value\nExit Sub\n\nErrorHandler:\n    MsgBox \"Error: \" & Err.Description\n    Resume Next",
-    "csharp_equivalent": "try\n{\n    // Some code that might fail\n    result = 10 / value;\n}\ncatch (Exception ex)\n{\n    MessageBox.Show(\"Error: \" + ex.Message);\n    // Continue execution\n}",
-    "description": "Error handling with On Error GoTo converted to try-catch",
-    "tags": ["error", "exception", "try", "catch", "onerror"],
-    "complexity": "high",
-    "confidence": 0.9
-  },
+    "error_handling": {
+      "pattern": "On Error GoTo ErrorHandler\n' Some code that might fail\nresult = 10 / value\nExit Sub\n\nErrorHandler:\n    MsgBox \"Error: \" & Err.Description\n    Resume Next",
+      "csharp_equivalent": "try\n{\n    // Some code that might fail\n    result = 10 / value;\n}\ncatch (Exception ex)\n{\n    MessageBox.Show(\"Error: \" + ex.Message);\n    // Continue execution\n}",
+      "description": "Error handling with On Error GoTo converted to try-catch",
+      "tags": ["error", "exception", "try", "catch", "onerror"],
+      "complexity": "high",
+      "confidence": 0.9
+    },
 
-  "error_raising": {
-    "pattern": "If value < 0 Then\n    Err.Raise 1001, \"MyFunction\", \"Value cannot be negative\"\nEnd If",
-    "csharp_equivalent": "if (value < 0)\n{\n    throw new ArgumentException(\"Value cannot be negative\");\n}",
-    "description": "Error raising with Err.Raise converted to throw exception",
-    "tags": ["error", "raise", "throw", "exception", "argumentexception"],
-    "complexity": "medium",
-    "confidence": 1.0
-  },
+    "error_raising": {
+      "pattern": "If value < 0 Then\n    Err.Raise 1001, \"MyFunction\", \"Value cannot be negative\"\nEnd If",
+      "csharp_equivalent": "if (value < 0)\n{\n    throw new ArgumentException(\"Value cannot be negative\");\n}",
+      "description": "Error raising with Err.Raise converted to throw exception",
+      "tags": ["error", "raise", "throw", "exception", "argumentexception"],
+      "complexity": "medium",
+      "confidence": 1.0
+    },
 
-  "string_operations": {
-    "pattern": "fullName = firstName & \" \" & lastName\nlength = Len(fullName)\nupperName = UCase(fullName)\nlowerName = LCase(fullName)\ntrimmed = Trim(fullName)",
-    "csharp_equivalent": "string fullName = firstName + \" \" + lastName;\nint length = fullName.Length;\nstring upperName = fullName.ToUpper();\nstring lowerName = fullName.ToLower();\nstring trimmed = fullName.Trim();",
-    "description": "Common string operations and concatenation",
-    "tags": ["string", "concatenation", "length", "upper", "lower", "trim"],
-    "complexity": "low",
-    "confidence": 1.0
-  },
+    "string_operations": {
+      "pattern": "fullName = firstName & \" \" & lastName\nlength = Len(fullName)\nupperName = UCase(fullName)\nlowerName = LCase(fullName)\ntrimmed = Trim(fullName)",
+      "csharp_equivalent": "string fullName = firstName + \" \" + lastName;\nint length = fullName.Length;\nstring upperName = fullName.ToUpper();\nstring lowerName = fullName.ToLower();\nstring trimmed = fullName.Trim();",
+      "description": "Common string operations and concatenation",
+      "tags": ["string", "concatenation", "length", "upper", "lower", "trim"],
+      "complexity": "low",
+      "confidence": 1.0
+    },
 
-  "string_functions": {
-    "pattern": "leftPart = Left(text, 5)\nrightPart = Right(text, 3)\nmiddlePart = Mid(text, 2, 4)\nposition = InStr(text, \"search\")",
-    "csharp_equivalent": "string leftPart = text.Substring(0, Math.Min(5, text.Length));\nstring rightPart = text.Substring(Math.Max(0, text.Length - 3));\nstring middlePart = text.Substring(1, Math.Min(4, text.Length - 1));\nint position = text.IndexOf(\"search\") + 1; // VB6 is 1-based",
-    "description": "VB6 string functions converted to C# methods",
-    "tags": ["string", "substring", "left", "right", "mid", "instr", "indexof"],
-    "complexity": "high",
-    "confidence": 0.8
-  },
+    "string_functions": {
+      "pattern": "leftPart = Left(text, 5)\nrightPart = Right(text, 3)\nmiddlePart = Mid(text, 2, 4)\nposition = InStr(text, \"search\")",
+      "csharp_equivalent": "string leftPart = text.Substring(0, Math.Min(5, text.Length));\nstring rightPart = text.Substring(Math.Max(0, text.Length - 3));\nstring middlePart = text.Substring(1, Math.Min(4, text.Length - 1));\nint position = text.IndexOf(\"search\") + 1; // VB6 is 1-based",
+      "description": "VB6 string functions converted to C# methods",
+      "tags": ["string", "substring", "left", "right", "mid", "instr", "indexof"],
+      "complexity": "high",
+      "confidence": 0.8
+    },
 
-  "numeric_functions": {
-    "pattern": "result = Int(3.7)\nresult = Fix(3.7)\nresult = Round(3.7, 2)\nresult = Abs(-5)\nresult = Sqr(16)",
-    "csharp_equivalent": "int result = (int)Math.Floor(3.7);\nresult = (int)Math.Truncate(3.7);\ndouble result2 = Math.Round(3.7, 2);\nresult = Math.Abs(-5);\ndouble result3 = Math.Sqrt(16);",
-    "description": "Numeric functions and mathematical operations",
-    "tags": ["numeric", "math", "int", "fix", "round", "abs", "sqrt"],
-    "complexity": "medium",
-    "confidence": 1.0
-  },
+    "numeric_functions": {
+      "pattern": "result = Int(3.7)\nresult = Fix(3.7)\nresult = Round(3.7, 2)\nresult = Abs(-5)\nresult = Sqr(16)",
+      "csharp_equivalent": "int result = (int)Math.Floor(3.7);\nresult = (int)Math.Truncate(3.7);\ndouble result2 = Math.Round(3.7, 2);\nresult = Math.Abs(-5);\ndouble result3 = Math.Sqrt(16);",
+      "description": "Numeric functions and mathematical operations",
+      "tags": ["numeric", "math", "int", "fix", "round", "abs", "sqrt"],
+      "complexity": "medium",
+      "confidence": 1.0
+    },
 
-  "date_time_operations": {
-    "pattern": "currentDate = Now\ncurrentTime = Time\njustDate = Date\nformattedDate = Format(Now, \"mm/dd/yyyy\")\nyearPart = Year(Now)",
-    "csharp_equivalent": "DateTime currentDate = DateTime.Now;\nDateTime currentTime = DateTime.Now;\nDateTime justDate = DateTime.Today;\nstring formattedDate = DateTime.Now.ToString(\"MM/dd/yyyy\");\nint yearPart = DateTime.Now.Year;",
-    "description": "Date and time operations",
-    "tags": ["datetime", "now", "date", "time", "format", "year"],
-    "complexity": "medium",
-    "confidence": 1.0
-  },
+    "date_time_operations": {
+      "pattern": "currentDate = Now\ncurrentTime = Time\njustDate = Date\nformattedDate = Format(Now, \"mm/dd/yyyy\")\nyearPart = Year(Now)",
+      "csharp_equivalent": "DateTime currentDate = DateTime.Now;\nDateTime currentTime = DateTime.Now;\nDateTime justDate = DateTime.Today;\nstring formattedDate = DateTime.Now.ToString(\"MM/dd/yyyy\");\nint yearPart = DateTime.Now.Year;",
+      "description": "Date and time operations",
+      "tags": ["datetime", "now", "date", "time", "format", "year"],
+      "complexity": "medium",
+      "confidence": 1.0
+    },
 
-  "type_conversion": {
-    "pattern": "strValue = CStr(123)\nintValue = CInt(\"456\")\ndblValue = CDbl(\"78.9\")\nblnValue = CBool(1)",
-    "csharp_equivalent": "string strValue = 123.ToString();\nint intValue = int.Parse(\"456\");\ndouble dblValue = double.Parse(\"78.9\");\nbool blnValue = Convert.ToBoolean(1);",
-    "description": "Type conversion functions",
-    "tags": ["conversion", "cstr", "cint", "cdbl", "cbool", "parse", "tostring"],
-    "complexity": "medium",
-    "confidence": 1.0
-  },
+    "type_conversion": {
+      "pattern": "strValue = CStr(123)\nintValue = CInt(\"456\")\ndblValue = CDbl(\"78.9\")\nblnValue = CBool(1)",
+      "csharp_equivalent": "string strValue = 123.ToString();\nint intValue = int.Parse(\"456\");\ndouble dblValue = double.Parse(\"78.9\");\nbool blnValue = Convert.ToBoolean(1);",
+      "description": "Type conversion functions",
+      "tags": ["conversion", "cstr", "cint", "cdbl", "cbool", "parse", "tostring"],
+      "complexity": "medium",
+      "confidence": 1.0
+    },
 
-  "array_operations": {
-    "pattern": "Dim arr(1 To 10) As Integer\nDim dynArr() As String\nReDim dynArr(5)\nReDim Preserve dynArr(10)\nubound = UBound(arr)\nlbound = LBound(arr)",
-    "csharp_equivalent": "int[] arr = new int[10]; // 0-based indexing\nstring[] dynArr;\ndynArr = new string[6]; // 0 to 5\n// For preserve functionality, use Array.Resize or List<T>\nArray.Resize(ref dynArr, 11);\nint ubound = arr.Length - 1;\nint lbound = 0;",
-    "description": "Array declarations and operations",
-    "tags": ["array", "redim", "preserve", "ubound", "lbound", "resize"],
-    "complexity": "high",
-    "confidence": 0.8
-  },
+    "array_operations": {
+      "pattern": "Dim arr(1 To 10) As Integer\nDim dynArr() As String\nReDim dynArr(5)\nReDim Preserve dynArr(10)\nubound = UBound(arr)\nlbound = LBound(arr)",
+      "csharp_equivalent": "int[] arr = new int[10]; // 0-based indexing\nstring[] dynArr;\ndynArr = new string[6]; // 0 to 5\n// For preserve functionality, use Array.Resize or List<T>\nArray.Resize(ref dynArr, 11);\nint ubound = arr.Length - 1;\nint lbound = 0;",
+      "description": "Array declarations and operations",
+      "tags": ["array", "redim", "preserve", "ubound", "lbound", "resize"],
+      "complexity": "high",
+      "confidence": 0.8
+    },
 
-  "collection_operations": {
-    "pattern": "Dim col As New Collection\ncol.Add \"Item1\", \"Key1\"\ncol.Add \"Item2\"\nitem = col.Item(\"Key1\")\ncol.Remove \"Key1\"\ncount = col.Count",
-    "csharp_equivalent": "Dictionary<string, string> col = new Dictionary<string, string>();\ncol.Add(\"Key1\", \"Item1\");\n// For items without keys, use List<string>\nList<string> list = new List<string>();\nlist.Add(\"Item2\");\nstring item = col[\"Key1\"];\ncol.Remove(\"Key1\");\nint count = col.Count;",
-    "description": "VB6 Collection converted to Dictionary or List",
-    "tags": ["collection", "dictionary", "list", "add", "remove", "count"],
-    "complexity": "high",
-    "confidence": 0.9
-  },
+    "collection_operations": {
+      "pattern": "Dim col As New Collection\ncol.Add \"Item1\", \"Key1\"\ncol.Add \"Item2\"\nitem = col.Item(\"Key1\")\ncol.Remove \"Key1\"\ncount = col.Count",
+      "csharp_equivalent": "Dictionary<string, string> col = new Dictionary<string, string>();\ncol.Add(\"Key1\", \"Item1\");\n// For items without keys, use List<string>\nList<string> list = new List<string>();\nlist.Add(\"Item2\");\nstring item = col[\"Key1\"];\ncol.Remove(\"Key1\");\nint count = col.Count;",
+      "description": "VB6 Collection converted to Dictionary or List",
+      "tags": ["collection", "dictionary", "list", "add", "remove", "count"],
+      "complexity": "high",
+      "confidence": 0.9
+    },
 
-  "object_creation": {
-    "pattern": "Dim obj As Object\nSet obj = CreateObject(\"Excel.Application\")\nSet obj = New MyClass\nSet obj = Nothing",
-    "csharp_equivalent": "// For COM objects:\n// var obj = Activator.CreateInstance(Type.GetTypeFromProgID(\"Excel.Application\"));\n// For regular objects:\nMyClass obj = new MyClass();\n// For disposal:\nobj = null;\n// Better: using statement for IDisposable objects",
-    "description": "Object creation and cleanup",
-    "tags": ["object", "createobject", "new", "nothing", "com", "activator"],
-    "complexity": "high",
-    "confidence": 0.7
-  },
+    "object_creation": {
+      "pattern": "Dim obj As Object\nSet obj = CreateObject(\"Excel.Application\")\nSet obj = New MyClass\nSet obj = Nothing",
+      "csharp_equivalent": "// For COM objects:\n// var obj = Activator.CreateInstance(Type.GetTypeFromProgID(\"Excel.Application\"));\n// For regular objects:\nMyClass obj = new MyClass();\n// For disposal:\nobj = null;\n// Better: using statement for IDisposable objects",
+      "description": "Object creation and cleanup",
+      "tags": ["object", "createobject", "new", "nothing", "com", "activator"],
+      "complexity": "high",
+      "confidence": 0.7
+    },
 
-  "with_statement": {
-    "pattern": "With objPerson\n    .Name = \"John\"\n    .Age = 30\n    .Address = \"123 Main St\"\nEnd With",
-    "csharp_equivalent": "// C# doesn't have With statement, use object initializer or direct assignment\nobjPerson.Name = \"John\";\nobjPerson.Age = 30;\nobjPerson.Address = \"123 Main St\";\n\n// Or with object initializer:\n// var objPerson = new Person\n// {\n//     Name = \"John\",\n//     Age = 30,\n//     Address = \"123 Main St\"\n// };",
-    "description": "With statement for object property assignment",
-    "tags": ["with", "object", "properties", "initializer"],
-    "complexity": "medium",
-    "confidence": 0.9
-  },
+    "with_statement": {
+      "pattern": "With objPerson\n    .Name = \"John\"\n    .Age = 30\n    .Address = \"123 Main St\"\nEnd With",
+      "csharp_equivalent": "// C# doesn't have With statement, use object initializer or direct assignment\nobjPerson.Name = \"John\";\nobjPerson.Age = 30;\nobjPerson.Address = \"123 Main St\";\n\n// Or with object initializer:\n// var objPerson = new Person\n// {\n//     Name = \"John\",\n//     Age = 30,\n//     Address = \"123 Main St\"\n// };",
+      "description": "With statement for object property assignment",
+      "tags": ["with", "object", "properties", "initializer"],
+      "complexity": "medium",
+      "confidence": 0.9
+    },
 
-  "property_procedures": {
-    "pattern": "Private m_Name As String\n\nPublic Property Get Name() As String\n    Name = m_Name\nEnd Property\n\nPublic Property Let Name(ByVal value As String)\n    m_Name = value\nEnd Property",
-    "csharp_equivalent": "private string m_Name;\n\npublic string Name\n{\n    get { return m_Name; }\n    set { m_Name = value; }\n}\n\n// Or with auto-implemented property:\n// public string Name { get; set; }",
-    "description": "VB6 Property Get/Let converted to C# properties",
-    "tags": ["property", "get", "set", "let", "encapsulation"],
-    "complexity": "medium",
-    "confidence": 1.0
-  },
+    "property_procedures": {
+      "pattern": "Private m_Name As String\n\nPublic Property Get Name() As String\n    Name = m_Name\nEnd Property\n\nPublic Property Let Name(ByVal value As String)\n    m_Name = value\nEnd Property",
+      "csharp_equivalent": "private string m_Name;\n\npublic string Name\n{\n    get { return m_Name; }\n    set { m_Name = value; }\n}\n\n// Or with auto-implemented property:\n// public string Name { get; set; }",
+      "description": "VB6 Property Get/Let converted to C# properties",
+      "tags": ["property", "get", "set", "let", "encapsulation"],
+      "complexity": "medium",
+      "confidence": 1.0
+    },
 
-  "class_initialization": {
-    "pattern": "Private Sub Class_Initialize()\n    ' Constructor code\n    m_Value = 0\nEnd Sub\n\nPrivate Sub Class_Terminate()\n    ' Destructor code\n    Set m_Object = Nothing\nEnd Sub",
-    "csharp_equivalent": "public MyClass()\n{\n    // Constructor code\n    m_Value = 0;\n}\n\n// Finalizer (rarely needed)\n~MyClass()\n{\n    // Cleanup code\n    m_Object = null;\n}\n\n// Better: Implement IDisposable\npublic void Dispose()\n{\n    m_Object = null;\n}",
-    "description": "Class initialization and termination",
-    "tags": ["class", "constructor", "destructor", "initialize", "terminate", "dispose"],
-    "complexity": "medium",
-    "confidence": 0.9
-  },
+    "class_initialization": {
+      "pattern": "Private Sub Class_Initialize()\n    ' Constructor code\n    m_Value = 0\nEnd Sub\n\nPrivate Sub Class_Terminate()\n    ' Destructor code\n    Set m_Object = Nothing\nEnd Sub",
+      "csharp_equivalent": "public MyClass()\n{\n    // Constructor code\n    m_Value = 0;\n}\n\n// Finalizer (rarely needed)\n~MyClass()\n{\n    // Cleanup code\n    m_Object = null;\n}\n\n// Better: Implement IDisposable\npublic void Dispose()\n{\n    m_Object = null;\n}",
+      "description": "Class initialization and termination",
+      "tags": ["class", "constructor", "destructor", "initialize", "terminate", "dispose"],
+      "complexity": "medium",
+      "confidence": 0.9
+    },
 
-  "optional_parameters": {
-    "pattern": "Public Function Calculate(ByVal x As Double, Optional ByVal y As Double = 1) As Double\n    Calculate = x * y\nEnd Function",
-    "csharp_equivalent": "public double Calculate(double x, double y = 1.0)\n{\n    return x * y;\n}",
-    "description": "Optional parameters with default values",
-    "tags": ["optional", "parameters", "default", "values"],
-    "complexity": "low",
-    "confidence": 1.0
-  },
+    "optional_parameters": {
+      "pattern": "Public Function Calculate(ByVal x As Double, Optional ByVal y As Double = 1) As Double\n    Calculate = x * y\nEnd Function",
+      "csharp_equivalent": "public double Calculate(double x, double y = 1.0)\n{\n    return x * y;\n}",
+      "description": "Optional parameters with default values",
+      "tags": ["optional", "parameters", "default", "values"],
+      "complexity": "low",
+      "confidence": 1.0
+    },
 
-  "byref_parameters": {
-    "pattern": "Public Sub Swap(ByRef a As Integer, ByRef b As Integer)\n    Dim temp As Integer\n    temp = a\n    a = b\n    b = temp\nEnd Sub",
-    "csharp_equivalent": "public void Swap(ref int a, ref int b)\n{\n    int temp = a;\n    a = b;\n    b = temp;\n}",
-    "description": "ByRef parameters converted to ref parameters",
-    "tags": ["byref", "ref", "parameters", "reference"],
-    "complexity": "medium",
-    "confidence": 1.0
-  },
+    "byref_parameters": {
+      "pattern": "Public Sub Swap(ByRef a As Integer, ByRef b As Integer)\n    Dim temp As Integer\n    temp = a\n    a = b\n    b = temp\nEnd Sub",
+      "csharp_equivalent": "public void Swap(ref int a, ref int b)\n{\n    int temp = a;\n    a = b;\n    b = temp;\n}",
+      "description": "ByRef parameters converted to ref parameters",
+      "tags": ["byref", "ref", "parameters", "reference"],
+      "complexity": "medium",
+      "confidence": 1.0
+    },
 
-  "debug_print": {
-    "pattern": "Debug.Print \"Value is: \" & value\nDebug.Print \"Starting process...\"\nDebug.Assert condition",
-    "csharp_equivalent": "System.Diagnostics.Debug.WriteLine(\"Value is: \" + value);\nSystem.Diagnostics.Debug.WriteLine(\"Starting process...\");\nSystem.Diagnostics.Debug.Assert(condition);",
-    "description": "Debug output and assertions",
-    "tags": ["debug", "print", "writeline", "assert"],
-    "complexity": "low",
-    "confidence": 1.0
-  },
+    "debug_print": {
+      "pattern": "Debug.Print \"Value is: \" & value\nDebug.Print \"Starting process...\"\nDebug.Assert condition",
+      "csharp_equivalent": "System.Diagnostics.Debug.WriteLine(\"Value is: \" + value);\nSystem.Diagnostics.Debug.WriteLine(\"Starting process...\");\nSystem.Diagnostics.Debug.Assert(condition);",
+      "description": "Debug output and assertions",
+      "tags": ["debug", "print", "writeline", "assert"],
+      "complexity": "low",
+      "confidence": 1.0
+    },
 
-  "file_operations": {
-    "pattern": "Open \"data.txt\" For Input As #1\nLine Input #1, textLine\nClose #1\n\nOpen \"output.txt\" For Output As #2\nPrint #2, \"Hello World\"\nClose #2",
-    "csharp_equivalent": "// Reading file\nstring textLine = File.ReadAllText(\"data.txt\");\n// or line by line:\nstring[] lines = File.ReadAllLines(\"data.txt\");\n\n// Writing file\nFile.WriteAllText(\"output.txt\", \"Hello World\");\n// or using StreamWriter:\nusing (StreamWriter writer = new StreamWriter(\"output.txt\"))\n{\n    writer.WriteLine(\"Hello World\");\n}",
-    "description": "File input/output operations",
-    "tags": ["file", "input", "output", "open", "close", "streamwriter"],
-    "complexity": "high",
-    "confidence": 0.8
+    "file_operations": {
+      "pattern": "Open \"data.txt\" For Input As #1\nLine Input #1, textLine\nClose #1\n\nOpen \"output.txt\" For Output As #2\nPrint #2, \"Hello World\"\nClose #2",
+      "csharp_equivalent": "// Reading file\nstring textLine = File.ReadAllText(\"data.txt\");\n// or line by line:\nstring[] lines = File.ReadAllLines(\"data.txt\");\n\n// Writing file\nFile.WriteAllText(\"output.txt\", \"Hello World\");\n// or using StreamWriter:\nusing (StreamWriter writer = new StreamWriter(\"output.txt\"))\n{\n    writer.WriteLine(\"Hello World\");\n}",
+      "description": "File input/output operations",
+      "tags": ["file", "input", "output", "open", "close", "streamwriter"],
+      "complexity": "high",
+      "confidence": 0.8
+    },
+
+    "interface_implementation": {
+      "pattern": "' VB6 Interface (in separate .cls file)\nPublic Sub Connect()\nEnd Sub\n\nPublic Function GetData() As String\nEnd Function\n\n' VB6 Class implementing interface\nImplements IDataProvider\n\nPrivate Sub IDataProvider_Connect()\n    ' Implementation\nEnd Sub\n\nPrivate Function IDataProvider_GetData() As String\n    IDataProvider_GetData = \"Sample data\"\nEnd Function",
+      "csharp_equivalent": "// C# Interface\npublic interface IDataProvider\n{\n    void Connect();\n    string GetData();\n}\n\n// C# Class implementing interface\npublic class DatabaseProvider : IDataProvider\n{\n    public void Connect()\n    {\n        // Implementation\n    }\n\n    public string GetData()\n    {\n        return \"Sample data\";\n    }\n}",
+      "description": "Interface definition and implementation pattern",
+      "tags": ["interface", "implements", "polymorphism", "abstraction"],
+      "complexity": "high",
+      "confidence": 0.95
+    },
+
+    "enumeration_with_class": {
+      "pattern": "' VB6 Enum (in separate module)\nPublic Enum StatusType\n    stActive = 1\n    stInactive = 2\n    stPending = 3\n    stSuspended = 4\nEnd Enum\n\n' VB6 Class using enum\nPrivate m_Status As StatusType\nPrivate m_StatusHistory As Collection\n\nPublic Property Get Status() As StatusType\n    Status = m_Status\nEnd Property\n\nPublic Property Let Status(ByVal value As StatusType)\n    If value <> m_Status Then\n        m_StatusHistory.Add m_Status & \":\" & Now\n        m_Status = value\n    End If\nEnd Property\n\nPublic Function GetStatusText() As String\n    Select Case m_Status\n        Case stActive: GetStatusText = \"Active\"\n        Case stInactive: GetStatusText = \"Inactive\"\n        Case stPending: GetStatusText = \"Pending\"\n        Case stSuspended: GetStatusText = \"Suspended\"\n        Case Else: GetStatusText = \"Unknown\"\n    End Select\nEnd Function",
+      "csharp_equivalent": "public enum StatusType\n{\n    Active = 1,\n    Inactive = 2,\n    Pending = 3,\n    Suspended = 4\n}\n\npublic class StatusManager\n{\n    private StatusType _status;\n    private List<string> _statusHistory = new List<string>();\n\n    public StatusType Status\n    {\n        get { return _status; }\n        set\n        {\n            if (value != _status)\n            {\n                _statusHistory.Add($\"{_status}:{DateTime.Now}\");\n                _status = value;\n            }\n        }\n    }\n\n    public string GetStatusText()\n    {\n        return _status switch\n        {\n            StatusType.Active => \"Active\",\n            StatusType.Inactive => \"Inactive\",\n            StatusType.Pending => \"Pending\",\n            StatusType.Suspended => \"Suspended\",\n            _ => \"Unknown\"\n        };\n    }\n}",
+      "description": "Enumeration usage with class properties and switch expressions",
+      "tags": ["enum", "switch", "expression", "history", "tracking"],
+      "complexity": "medium",
+      "confidence": 0.98
+    },
+
+    "event_handling_class": {
+      "pattern": "' VB6 Class with events\nPublic Event DataChanged(ByVal oldValue As String, ByVal newValue As String)\nPublic Event ValidationFailed(ByVal errorMessage As String)\nPublic Event ProcessCompleted()\n\nPrivate m_Data As String\nPrivate m_IsProcessing As Boolean\n\nPublic Property Let Data(ByVal value As String)\n    Dim oldValue As String\n    oldValue = m_Data\n    \n    If ValidateData(value) Then\n        m_Data = value\n        RaiseEvent DataChanged(oldValue, value)\n    Else\n        RaiseEvent ValidationFailed(\"Invalid data format\")\n    End If\nEnd Property\n\nPrivate Function ValidateData(ByVal data As String) As Boolean\n    ValidateData = (Len(data) > 0 And Len(data) <= 100)\nEnd Function\n\nPublic Sub ProcessData()\n    If Not m_IsProcessing Then\n        m_IsProcessing = True\n        ' Processing logic here\n        DoEvents\n        m_IsProcessing = False\n        RaiseEvent ProcessCompleted\n    End If\nEnd Sub",
+      "csharp_equivalent": "public class DataProcessor\n{\n    public event Action<string, string> DataChanged;\n    public event Action<string> ValidationFailed;\n    public event Action ProcessCompleted;\n\n    private string _data;\n    private bool _isProcessing;\n\n    public string Data\n    {\n        get { return _data; }\n        set\n        {\n            string oldValue = _data;\n            \n            if (ValidateData(value))\n            {\n                _data = value;\n                DataChanged?.Invoke(oldValue, value);\n            }\n            else\n            {\n                ValidationFailed?.Invoke(\"Invalid data format\");\n            }\n        }\n    }\n\n    private bool ValidateData(string data)\n    {\n        return !string.IsNullOrEmpty(data) && data.Length <= 100;\n    }\n\n    public async Task ProcessDataAsync()\n    {\n        if (!_isProcessing)\n        {\n            _isProcessing = true;\n            // Processing logic here\n            await Task.Delay(100); // Replace DoEvents\n            _isProcessing = false;\n            ProcessCompleted?.Invoke();\n        }\n    }\n}",
+      "description": "Event-driven class with validation and async processing",
+      "tags": ["events", "validation", "async", "action", "delegates"],
+      "complexity": "high",
+      "confidence": 0.92
+    },
+
+    "inheritance_pattern": {
+      "pattern": "' VB6 Base Class\nPrivate m_Name As String\nPrivate m_ID As Long\n\nPublic Property Get Name() As String\n    Name = m_Name\nEnd Property\n\nPublic Property Let Name(ByVal value As String)\n    m_Name = value\nEnd Property\n\nPublic Property Get ID() As Long\n    ID = m_ID\nEnd Property\n\nPublic Property Let ID(ByVal value As Long)\n    m_ID = value\nEnd Property\n\nPublic Function GetInfo() As String\n    GetInfo = \"Base: \" & m_Name\nEnd Function\n\n' VB6 Derived Class (composition-based inheritance)\nPrivate m_Base As BaseClass\nPrivate m_Salary As Double\n\nPrivate Sub Class_Initialize()\n    Set m_Base = New BaseClass\nEnd Sub\n\nPublic Property Get Name() As String\n    Name = m_Base.Name\nEnd Property\n\nPublic Property Let Name(ByVal value As String)\n    m_Base.Name = value\nEnd Property\n\nPublic Property Get Salary() As Double\n    Salary = m_Salary\nEnd Property\n\nPublic Property Let Salary(ByVal value As Double)\n    If value >= 0 Then\n        m_Salary = value\n    End If\nEnd Property\n\nPublic Function GetInfo() As String\n    GetInfo = m_Base.GetInfo() & \", Salary: \" & m_Salary\nEnd Function",
+      "csharp_equivalent": "// C# Base Class\npublic class BaseEntity\n{\n    protected string _name;\n    protected long _id;\n\n    public virtual string Name\n    {\n        get { return _name; }\n        set { _name = value; }\n    }\n\n    public virtual long ID\n    {\n        get { return _id; }\n        set { _id = value; }\n    }\n\n    public virtual string GetInfo()\n    {\n        return $\"Base: {_name}\";\n    }\n}\n\n// C# Derived Class (true inheritance)\npublic class Employee : BaseEntity\n{\n    private double _salary;\n\n    public double Salary\n    {\n        get { return _salary; }\n        set\n        {\n            if (value >= 0)\n            {\n                _salary = value;\n            }\n        }\n    }\n\n    public override string GetInfo()\n    {\n        return $\"{base.GetInfo()}, Salary: {_salary:C}\";\n    }\n}",
+      "description": "Inheritance pattern with virtual methods and property override",
+      "tags": ["inheritance", "virtual", "override", "base", "polymorphism"],
+      "complexity": "high",
+      "confidence": 0.95
+    },
+
+    "factory_pattern": {
+      "pattern": "' VB6 Factory Class\nPublic Enum DocumentType\n    dtWord = 1\n    dtExcel = 2\n    dtPowerPoint = 3\nEnd Enum\n\nPublic Function CreateDocument(ByVal docType As DocumentType) As Object\n    Select Case docType\n        Case dtWord\n            Set CreateDocument = CreateObject(\"Word.Application\")\n        Case dtExcel\n            Set CreateDocument = CreateObject(\"Excel.Application\")\n        Case dtPowerPoint\n            Set CreateDocument = CreateObject(\"PowerPoint.Application\")\n        Case Else\n            Set CreateDocument = Nothing\n    End Select\nEnd Function\n\nPublic Function CreateDocumentWithTemplate(ByVal docType As DocumentType, ByVal templatePath As String) As Object\n    Dim doc As Object\n    Set doc = CreateDocument(docType)\n    \n    If Not doc Is Nothing Then\n        ' Configure with template\n        Select Case docType\n            Case dtWord\n                doc.Documents.Add templatePath\n            Case dtExcel\n                doc.Workbooks.Add templatePath\n        End Select\n    End If\n    \n    Set CreateDocumentWithTemplate = doc\nEnd Function",
+      "csharp_equivalent": "public enum DocumentType\n{\n    Word = 1,\n    Excel = 2,\n    PowerPoint = 3\n}\n\npublic interface IDocument\n{\n    void Open(string path);\n    void Save();\n    void Close();\n}\n\npublic class DocumentFactory\n{\n    public static IDocument CreateDocument(DocumentType docType)\n    {\n        return docType switch\n        {\n            DocumentType.Word => new WordDocument(),\n            DocumentType.Excel => new ExcelDocument(),\n            DocumentType.PowerPoint => new PowerPointDocument(),\n            _ => throw new ArgumentException(\"Unknown document type\")\n        };\n    }\n\n    public static IDocument CreateDocumentWithTemplate(DocumentType docType, string templatePath)\n    {\n        var document = CreateDocument(docType);\n        document.Open(templatePath);\n        return document;\n    }\n}\n\n// Concrete implementations\npublic class WordDocument : IDocument\n{\n    public void Open(string path) { /* Word-specific logic */ }\n    public void Save() { /* Word-specific logic */ }\n    public void Close() { /* Word-specific logic */ }\n}\n\npublic class ExcelDocument : IDocument\n{\n    public void Open(string path) { /* Excel-specific logic */ }\n    public void Save() { /* Excel-specific logic */ }\n    public void Close() { /* Excel-specific logic */ }\n}\n\npublic class PowerPointDocument : IDocument\n{\n    public void Open(string path) { /* PowerPoint-specific logic */ }\n    public void Save() { /* PowerPoint-specific logic */ }\n    public void Close() { /* PowerPoint-specific logic */ }\n}",
+      "description": "Factory pattern with interface implementation and dependency injection ready",
+      "tags": ["factory", "pattern", "interface", "polymorphism", "creation"],
+      "complexity": "high",
+      "confidence": 0.88
+    },
+
+    "data_access_class": {
+      "pattern": "' VB6 Data Access Class\nPrivate m_Connection As Object\nPrivate m_RecordSet As Object\nPrivate m_ConnectionString As String\n\nPrivate Sub Class_Initialize()\n    Set m_Connection = CreateObject(\"ADODB.Connection\")\n    Set m_RecordSet = CreateObject(\"ADODB.Recordset\")\nEnd Sub\n\nPublic Property Let ConnectionString(ByVal value As String)\n    m_ConnectionString = value\nEnd Property\n\nPublic Function Connect() As Boolean\n    On Error GoTo ErrorHandler\n    m_Connection.Open m_ConnectionString\n    Connect = True\n    Exit Function\n    \nErrorHandler:\n    Connect = False\nEnd Function\n\nPublic Function ExecuteQuery(ByVal sql As String) As Collection\n    Dim results As New Collection\n    Dim record As Collection\n    \n    On Error GoTo ErrorHandler\n    \n    Set m_RecordSet = m_Connection.Execute(sql)\n    \n    Do While Not m_RecordSet.EOF\n        Set record = New Collection\n        For i = 0 To m_RecordSet.Fields.Count - 1\n            record.Add m_RecordSet.Fields(i).Value, m_RecordSet.Fields(i).Name\n        Next i\n        results.Add record\n        m_RecordSet.MoveNext\n    Loop\n    \n    Set ExecuteQuery = results\n    Exit Function\n    \nErrorHandler:\n    Set ExecuteQuery = Nothing\nEnd Function\n\nPrivate Sub Class_Terminate()\n    If Not m_RecordSet Is Nothing Then\n        If m_RecordSet.State <> 0 Then m_RecordSet.Close\n        Set m_RecordSet = Nothing\n    End If\n    \n    If Not m_Connection Is Nothing Then\n        If m_Connection.State <> 0 Then m_Connection.Close\n        Set m_Connection = Nothing\n    End If\nEnd Sub",
+      "csharp_equivalent": "using System.Data;\nusing System.Data.SqlClient;\n\npublic class DataAccessLayer : IDisposable\n{\n    private SqlConnection _connection;\n    private string _connectionString;\n    private bool _disposed = false;\n\n    public string ConnectionString\n    {\n        get { return _connectionString; }\n        set { _connectionString = value; }\n    }\n\n    public bool Connect()\n    {\n        try\n        {\n            _connection = new SqlConnection(_connectionString);\n            _connection.Open();\n            return true;\n        }\n        catch\n        {\n            return false;\n        }\n    }\n\n    public async Task<List<Dictionary<string, object>>> ExecuteQueryAsync(string sql)\n    {\n        var results = new List<Dictionary<string, object>>();\n        \n        try\n        {\n            using (var command = new SqlCommand(sql, _connection))\n            using (var reader = await command.ExecuteReaderAsync())\n            {\n                while (await reader.ReadAsync())\n                {\n                    var record = new Dictionary<string, object>();\n                    \n                    for (int i = 0; i < reader.FieldCount; i++)\n                    {\n                        record[reader.GetName(i)] = reader.GetValue(i) ?? DBNull.Value;\n                    }\n                    \n                    results.Add(record);\n                }\n            }\n        }\n        catch (Exception ex)\n        {\n            throw new DataException($\"Query execution failed: {ex.Message}\", ex);\n        }\n        \n        return results;\n    }\n\n    // Strongly-typed version\n    public async Task<List<T>> ExecuteQueryAsync<T>(string sql, Func<IDataReader, T> mapper)\n    {\n        var results = new List<T>();\n        \n        using (var command = new SqlCommand(sql, _connection))\n        using (var reader = await command.ExecuteReaderAsync())\n        {\n            while (await reader.ReadAsync())\n            {\n                results.Add(mapper(reader));\n            }\n        }\n        \n        return results;\n    }\n\n    public void Dispose()\n    {\n        Dispose(true);\n        GC.SuppressFinalize(this);\n    }\n\n    protected virtual void Dispose(bool disposing)\n    {\n        if (!_disposed && disposing)\n        {\n            _connection?.Close();\n            _connection?.Dispose();\n            _disposed = true;\n        }\n    }\n}",
+      "description": "Data access layer with async operations, generics, and proper resource disposal",
+      "tags": ["data-access", "async", "generics", "disposable", "sql", "mapping"],
+      "complexity": "very-high",
+      "confidence": 0.85
+    },
+
+    "singleton_pattern": {
+      "pattern": "' VB6 Singleton Class\nPrivate m_Instance As MyLogger\nPrivate m_LogFile As String\nPrivate m_IsInitialized As Boolean\n\nPublic Function GetInstance() As MyLogger\n    If m_Instance Is Nothing Then\n        Set m_Instance = New MyLogger\n        m_Instance.Initialize\n    End If\n    Set GetInstance = m_Instance\nEnd Function\n\nPrivate Sub Initialize()\n    If Not m_IsInitialized Then\n        m_LogFile = App.Path & \"\\log.txt\"\n        m_IsInitialized = True\n    End If\nEnd Sub\n\nPublic Sub WriteLog(ByVal message As String)\n    Dim fileNum As Integer\n    fileNum = FreeFile\n    \n    On Error Resume Next\n    Open m_LogFile For Append As #fileNum\n    Print #fileNum, Now & \": \" & message\n    Close #fileNum\nEnd Sub\n\nPrivate Sub Class_Initialize()\n    ' Prevent direct instantiation would be ideal but not easily done in VB6\nEnd Sub",
+      "csharp_equivalent": "public sealed class Logger\n{\n    private static readonly Lazy<Logger> _instance = new Lazy<Logger>(() => new Logger());\n    private readonly string _logFile;\n    private readonly object _lockObject = new object();\n\n    private Logger()\n    {\n        _logFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, \"log.txt\");\n    }\n\n    public static Logger Instance => _instance.Value;\n\n    public void WriteLog(string message)\n    {\n        lock (_lockObject)\n        {\n            try\n            {\n                using (var writer = new StreamWriter(_logFile, true))\n                {\n                    writer.WriteLine($\"{DateTime.Now}: {message}\");\n                }\n            }\n            catch (Exception ex)\n            {\n                // Handle logging errors appropriately\n                System.Diagnostics.Debug.WriteLine($\"Logging failed: {ex.Message}\");\n            }\n        }\n    }\n\n    public async Task WriteLogAsync(string message)\n    {\n        try\n        {\n            using (var writer = new StreamWriter(_logFile, true))\n            {\n                await writer.WriteLineAsync($\"{DateTime.Now}: {message}\");\n            }\n        }\n        catch (Exception ex)\n        {\n            System.Diagnostics.Debug.WriteLine($\"Async logging failed: {ex.Message}\");\n        }\n    }\n}\n\n// Usage:\n// Logger.Instance.WriteLog(\"Application started\");\n// await Logger.Instance.WriteLogAsync(\"Async operation completed\");",
+      "description": "Thread-safe singleton pattern with lazy initialization and async support",
+      "tags": ["singleton", "lazy", "thread-safe", "async", "logging"],
+      "complexity": "high",
+      "confidence": 0.95
+    },
+
+    "validation_class": {
+      "pattern": "' VB6 Validation Class\nPrivate m_Errors As Collection\nPrivate m_Warnings As Collection\n\nPrivate Sub Class_Initialize()\n    Set m_Errors = New Collection\n    Set m_Warnings = New Collection\nEnd Sub\n\nPublic Function ValidateEmail(ByVal email As String) As Boolean\n    If InStr(email, \"@\") = 0 Then\n        m_Errors.Add \"Invalid email format: \" & email\n        ValidateEmail = False\n    ElseIf Len(email) > 100 Then\n        m_Warnings.Add \"Email address is very long: \" & email\n        ValidateEmail = True\n    Else\n        ValidateEmail = True\n    End If\nEnd Function\n\nPublic Function ValidateAge(ByVal age As Integer) As Boolean\n    If age < 0 Then\n        m_Errors.Add \"Age cannot be negative\"\n        ValidateAge = False\n    ElseIf age > 120 Then\n        m_Warnings.Add \"Age seems unusually high: \" & age\n        ValidateAge = True\n    ElseIf age < 18 Then\n        m_Warnings.Add \"Person is under 18 years old\"\n        ValidateAge = True\n    Else\n        ValidateAge = True\n    End If\nEnd Function\n\nPublic Function HasErrors() As Boolean\n    HasErrors = (m_Errors.Count > 0)\nEnd Function\n\nPublic Function GetErrorMessages() As String\n    Dim result As String\n    Dim i As Integer\n    \n    For i = 1 To m_Errors.Count\n        result = result & m_Errors.Item(i) & vbCrLf\n    Next i\n    \n    GetErrorMessages = result\nEnd Function\n\nPublic Sub ClearValidation()\n    Set m_Errors = New Collection\n    Set m_Warnings = New Collection\nEnd Sub",
+      "csharp_equivalent": "using System.ComponentModel.DataAnnotations;\nusing System.Text.RegularExpressions;\n\npublic class ValidationResult\n{\n    public bool IsValid { get; set; }\n    public List<string> Errors { get; set; } = new List<string>();\n    public List<string> Warnings { get; set; } = new List<string>();\n    \n    public string GetErrorMessages() => string.Join(Environment.NewLine, Errors);\n    public string GetWarningMessages() => string.Join(Environment.NewLine, Warnings);\n}\n\npublic class BusinessValidator\n{\n    private static readonly Regex EmailRegex = new Regex(\n        @\"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$\",\n        RegexOptions.Compiled | RegexOptions.IgnoreCase);\n\n    public ValidationResult ValidateEmail(string email)\n    {\n        var result = new ValidationResult();\n        \n        if (string.IsNullOrWhiteSpace(email))\n        {\n            result.Errors.Add(\"Email is required\");\n        }\n        else if (!EmailRegex.IsMatch(email))\n        {\n            result.Errors.Add($\"Invalid email format: {email}\");\n        }\n        else if (email.Length > 100)\n        {\n            result.Warnings.Add($\"Email address is very long: {email}\");\n        }\n        \n        result.IsValid = !result.Errors.Any();\n        return result;\n    }\n\n    public ValidationResult ValidateAge(int age)\n    {\n        var result = new ValidationResult();\n        \n        if (age < 0)\n        {\n            result.Errors.Add(\"Age cannot be negative\");\n        }\n        else if (age > 120)\n        {\n            result.Warnings.Add($\"Age seems unusually high: {age}\");\n        }\n        else if (age < 18)\n        {\n            result.Warnings.Add(\"Person is under 18 years old\");\n        }\n        \n        result.IsValid = !result.Errors.Any();\n        return result;\n    }\n\n    // Comprehensive validation method\n    public ValidationResult ValidatePerson(string email, int age)\n    {\n        var emailResult = ValidateEmail(email);\n        var ageResult = ValidateAge(age);\n        \n        return new ValidationResult\n        {\n            Errors = emailResult.Errors.Concat(ageResult.Errors).ToList(),\n            Warnings = emailResult.Warnings.Concat(ageResult.Warnings).ToList(),\n            IsValid = emailResult.IsValid && ageResult.IsValid\n        };\n    }\n}\n\n// Usage with Data Annotations alternative:\n[AttributeUsage(AttributeTargets.Property)]\npublic class AgeRangeAttribute : ValidationAttribute\n{\n    public int MinAge { get; set; } = 0;\n    public int MaxAge { get; set; } = 120;\n\n    protected override ValidationResult IsValid(object value, ValidationContext validationContext)\n    {\n        if (value is int age)\n        {\n            if (age < MinAge || age > MaxAge)\n            {\n                return new ValidationResult($\"Age must be between {MinAge} and {MaxAge}\");\n            }\n        }\n        return ValidationResult.Success;\n    }\n}",
+      "description": "Comprehensive validation class with fluent API, regex support, and data annotations",
+      "tags": ["validation", "regex", "attributes", "fluent", "comprehensive"],
+      "complexity": "high",
+      "confidence": 0.92
+    }
   }
-}
