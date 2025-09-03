@@ -134,6 +134,9 @@ class FormAgent(BaseTranslationAgent):
             
             # Get RAG context for enhanced translation
             rag_context = self._get_rag_context(vb6_content, "form")
+            print("--------------------------------")
+            print(rag_context)
+            print("--------------------------------")
             
             # Create enhanced messages with RAG context for form translation
             messages = self._create_enhanced_messages("vb6_to_winforms", vb6_content, rag_context)
@@ -178,14 +181,8 @@ class FormAgent(BaseTranslationAgent):
             return ""
         
         try:
-            # Get context info for RAG search
-            context_info = {
-                "file_type": file_type, 
-                "component_type": "form"
-            }
-            
             # Get pattern suggestions from RAG manager
-            suggestions = self.rag_manager.retrieve_similar_patterns(vb6_code, category=context_info.get("component_type"))
+            suggestions = self.rag_manager.retrieve_similar_patterns(vb6_code, top_k=3, category="form")
             
             if not suggestions:
                 return ""
@@ -194,15 +191,15 @@ class FormAgent(BaseTranslationAgent):
             context_parts = ["Relevant form translation patterns for reference:"]
             for i, match in enumerate(suggestions[:3], 1):  # Top 3 patterns
                 context_parts.append(f"\n{i}. Pattern (Score: {match.similarity_score:.3f}):")
-                context_parts.append(f"   VB6: {match.pattern.vb6_code[:200]}...")
-                context_parts.append(f"   C#: {match.pattern.csharp_translation[:200]}...")
-                context_parts.append(f"   Category: {match.pattern.category}, Complexity: {match.pattern.complexity}")
+                context_parts.append(f"   VB6: {match.pattern.vb6_code}")
+                context_parts.append(f"   C#: {match.pattern.csharp_code}")
+                context_parts.append(f"   Category: {match.pattern.category}")
             
             return "\n".join(context_parts)
             
         except Exception as e:
             self.logger.debug(f"RAG context generation failed: {e}")
-        return ""
+            return ""
     
     def _create_enhanced_messages(self, prompt_type: str, vb6_content: str, rag_context: str) -> List[Dict[str, str]]:
         """Create messages with RAG context enhancement"""
