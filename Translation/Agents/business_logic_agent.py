@@ -122,7 +122,9 @@ class BusinessLogicAgent(BaseTranslationAgent):
             
             # Get RAG context for enhanced translation
             rag_context = self._get_rag_context(vb6_content, parsed_file.file_type)
-            
+            print("--------------------------------")
+            print(rag_context)
+            print("--------------------------------")
             # Create enhanced messages with RAG context
             messages = self._create_enhanced_messages(prompt_type, vb6_content, rag_context)
             
@@ -178,9 +180,9 @@ class BusinessLogicAgent(BaseTranslationAgent):
             context_parts = ["Relevant translation patterns for reference:"]
             for i, match in enumerate(suggestions[:3], 1):  # Top 3 patterns
                 context_parts.append(f"\n{i}. Pattern (Score: {match.similarity_score:.3f}):")
-                context_parts.append(f"   VB6: {match.pattern.vb6_code[:200]}...")
-                context_parts.append(f"   C#: {match.pattern.csharp_translation[:200]}...")
-                context_parts.append(f"   Category: {match.pattern.category}, Complexity: {match.pattern.complexity}")
+                context_parts.append(f"   VB6: {match.pattern.vb6_code}")
+                context_parts.append(f"   C#: {match.pattern.csharp_code}")
+                context_parts.append(f"   Category: {match.pattern.category}")
             
             return "\n".join(context_parts)
             
