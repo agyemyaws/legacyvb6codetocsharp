@@ -7,7 +7,7 @@ load_dotenv()
 # Core settings
 OLLAMA_MODEL = "codellama:7b"
 OLLAMA_TIMEOUT = 120
-CLAUDE_MODEL = "claude-3-7-sonnet-20250219"
+CLAUDE_MODEL = "claude-sonnet-4-20250514"
 CLAUDE_TIMEOUT = 120
 EMBEDDING_MODEL = "nomic-embed-text:latest"
 MODEL_CACHE_DIR = str(Path.home() / ".cache" / "legacy_code_translation")
@@ -46,7 +46,7 @@ class Settings:
         self.RAG_CHROMA_DB_PATH = os.environ.get("RAG_CHROMA_DB_PATH", "./chroma_db")
         self.RAG_PATTERNS_DIR = os.environ.get("RAG_PATTERNS_DIR", "Knowledge/VB6_to_CSharp_Equivalents")
         self.RAG_MAX_PATTERNS = int(os.environ.get("RAG_MAX_PATTERNS", "5"))
-        self.RAG_MIN_SIMILARITY = float(os.environ.get("RAG_MIN_SIMILARITY", "0.15"))
+        self.RAG_MIN_SIMILARITY = float(os.environ.get("RAG_MIN_SIMILARITY", "0.0"))
         self.RAG_ENABLE_CACHING = os.environ.get("RAG_ENABLE_CACHING", "true").lower() == "true"
 
 
