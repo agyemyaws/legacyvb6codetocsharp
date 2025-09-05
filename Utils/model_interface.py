@@ -209,6 +209,9 @@ class ClaudeClient:
             if system_message:
                 request_params["system"] = system_message
             
+            # Make the API call to Claude
+            logger.info(f"Claude request size: {len(str(request_params))} characters, {len(claude_messages)} messages")
+            response = self.client.messages.create(**request_params)
 
             content = ""
             if response.content:
