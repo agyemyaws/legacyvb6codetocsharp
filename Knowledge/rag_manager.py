@@ -11,6 +11,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 import chromadb
 from Utils.model_interface import EmbeddingsClient
+from settings import get_settings
 
 
 @dataclass
@@ -152,8 +153,17 @@ class RAGManager:
                         match_reason=match_reason
                     ))
             
+            # Sort by similarity
             matches.sort(key=lambda x: x.similarity_score, reverse=True)
-            return matches
+
+            # Apply minimum similarity threshold from settings
+            try:
+                min_similarity = float(get_settings().RAG_MIN_SIMILARITY)
+            except Exception:
+                min_similarity = 0.0
+
+            filtered = [m for m in matches if m.similarity_score >= min_similarity]
+            return filtered[:top_k]
             
         except Exception as e:
             self.logger.error(f"Failed to retrieve similar patterns: {e}")
@@ -169,7 +179,7 @@ class RAGManager:
         
         category_mapping = {
             'forms_patterns': 'form',
-            'business_logic_patterns': 'business_logic',
+            'business_logic_patterns': 'class',
             'data_access_patterns': 'data_access',
             'com_patterns': 'method',
             'error_handling_patterns': 'method'
