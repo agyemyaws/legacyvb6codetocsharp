@@ -130,9 +130,8 @@ DESIGNER FILE SEPARATION:
 
 {source_code}
 
-{context}
-
 Generate complete, production-ready C# code in this exact format:
+
 
 <!-- FORM_CLASS_START -->
 using System;
@@ -244,6 +243,7 @@ CRITICAL REQUIREMENTS:
 16. ALL control property setting (Left, Top, Width, Height, Text, Visible) goes in Designer file.
 17. Form_Load should ONLY contain business logic, NOT control property setting.
 18. Designer file must contain complete control initialization matching VB6 form exactly.""",
+
     
     description="Optimal CodeLlama 13B prompt for VB6 to C# WinForms translation"
 ),

@@ -76,6 +76,12 @@ def setup_application(args: argparse.Namespace) -> None:
     
     log_level = logging.DEBUG if args.verbose else logging.INFO
     
+    # Create session log file if no log file specified
+    log_file = args.log_file
+    if not log_file:
+        from Utils.logging_config import create_session_log_file
+        log_file = create_session_log_file("translation")
+    
     setup_logging(
         level=log_level,
         task_name="translation"
