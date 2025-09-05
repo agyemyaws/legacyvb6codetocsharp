@@ -12,6 +12,7 @@ from Core.analyzer import VB6File
 from Utils.vb6_parser import VB6ParsedFile
 from Utils.prompt_templates import get_prompt_manager
 from Utils.model_interface import OllamaClient, ClaudeClient, ModelResponse
+from Utils.translation_utils import get_namespace_from_path, sanitize_csharp_name, clean_llm_response, generate_using_statements
 
 
 @dataclass
@@ -62,26 +63,31 @@ class BusinessLogicAgent(BaseTranslationAgent):
     - VB6-specific constructs (Select Case, Option Explicit, etc.)
     """
         
-    def __init__(self, model_client: Union[OllamaClient, ClaudeClient]):
+    def __init__(self, model_client: Union[OllamaClient, ClaudeClient], project_root: Path = None):
         super().__init__("BusinessLogicAgent", model_client)
         self.prompt_manager = get_prompt_manager()
+        self.project_root = project_root
         
         # Initialize RAG manager for context-aware translation
         try:
             from Knowledge.rag_manager import RAGManager
             self.rag_manager = RAGManager()
             self.logger.info("RAG manager initialized successfully")
+            
         except Exception as e:
             self.rag_manager = None
             self.logger.warning(f"RAG manager not available: {e}")
     
-    def translate(self, vb6_file: VB6File) -> CSharpComponent:
+    def translate(self, vb6_file: VB6File, project_files: dict = None) -> CSharpComponent:
         """Translate VB6 module/class to C# - implements BaseTranslationAgent interface"""
         self.logger.info(f"Translating business logic: {vb6_file.name}")
         
         try:
-            # Use the existing translate_module method
-            csharp_class = self.translate_module(vb6_file.parsed_data)
+            # Use parsed_data if available, otherwise use VB6File directly
+            if vb6_file.parsed_data:
+                csharp_class = self.translate_module(vb6_file.parsed_data, project_files)
+            else:
+                csharp_class = self.translate_module(vb6_file, project_files)
             
             if csharp_class:
                 # Convert CSharpClass to CSharpComponent
@@ -100,12 +106,13 @@ class BusinessLogicAgent(BaseTranslationAgent):
             raise Exception(f"Failed to translate VB6 business logic '{vb6_file.name}': {e}") from e
 
     
-    def translate_module(self, parsed_file: VB6ParsedFile) -> Optional[CSharpClass]:
+    def translate_module(self, parsed_file, project_files: dict = None) -> Optional[CSharpClass]:
         """
         Translate a VB6 module (.bas) or class (.cls) to C# using LLM with RAG
         
         Args:
             parsed_file: Parsed VB6 file
+            project_files: Dictionary of all project files for dependency resolution
             
         Returns:
             CSharpClass object containing translated code
@@ -113,8 +120,13 @@ class BusinessLogicAgent(BaseTranslationAgent):
         self.logger.info(f"Translating VB6 {parsed_file.file_type}: {parsed_file.name}")
         
         try:
+            # Get file path - handle both VB6File and VB6ParsedFile
+            file_path = getattr(parsed_file, 'file_path', None) or getattr(parsed_file, 'path', None)
+            if not file_path:
+                raise Exception(f"No valid file path found for {parsed_file.name}")
+            
             # Read the VB6 source code
-            with open(parsed_file.file_path, 'r', encoding='latin-1') as f:
+            with open(file_path, 'r', encoding='latin-1') as f:
                 vb6_content = f.read()
             
             # Select appropriate prompt based on file type
@@ -125,8 +137,14 @@ class BusinessLogicAgent(BaseTranslationAgent):
             print("--------------------------------")
             print(rag_context)
             print("--------------------------------")
-            # Create enhanced messages with RAG context
-            messages = self._create_enhanced_messages(prompt_type, vb6_content, rag_context)
+            # Create enhanced messages with RAG context and smart using statements
+            messages = self._create_enhanced_messages(
+                prompt_type, 
+                vb6_content, 
+                rag_context, 
+                vb6_file=parsed_file,
+                project_files=project_files
+            )
             
             if not messages:
                 raise Exception("Failed to create prompt messages")
@@ -138,15 +156,19 @@ class BusinessLogicAgent(BaseTranslationAgent):
                 raise Exception("Empty response from LLM")
             
             # Clean and process the response
-            translated_code = self._clean_llm_response(response.content)
+            translated_code = clean_llm_response(response.content)
+            
+            # Get file path - handle both VB6File and VB6ParsedFile
+            file_path = getattr(parsed_file, 'file_path', None) or getattr(parsed_file, 'path', None)
+            namespace = get_namespace_from_path(file_path, self.project_root) if file_path else "Translated"
             
             return CSharpClass(
-                name=self._sanitize_name(parsed_file.name),
-                namespace="Translated.Business",
+                name=sanitize_csharp_name(parsed_file.name),
+                namespace=namespace,
                 class_code=translated_code,
                 using_statements=[],  # LLM handles using statements in the code
                 metadata={
-                    "original_file": str(parsed_file.file_path),
+                    "original_file": str(file_path) if file_path else "unknown",
                     "model": response.model,
                     "provider": response.provider,
                     "rag_context_used": bool(rag_context)
@@ -161,17 +183,16 @@ class BusinessLogicAgent(BaseTranslationAgent):
     def _get_rag_context(self, vb6_code: str, file_type: str) -> str:
         """Get RAG context from similar patterns"""
         if not self.rag_manager:
+            self.logger.warning("RAG manager not available")
             return ""
         
         try:
-            # Get context info for RAG search
-            context_info = {
-                "file_type": file_type, 
-                "component_type": "business_logic"
-            }
+            # Map to RAG categories used by the knowledge loader
+            # "class" covers business_logic patterns; modules also map best to "class"
+            rag_category = "class"
             
             # Get pattern suggestions from RAG manager
-            suggestions = self.rag_manager.retrieve_similar_patterns(vb6_code, category=context_info.get("component_type"))
+            suggestions = self.rag_manager.retrieve_similar_patterns(vb6_code, category=rag_category)
             
             if not suggestions:
                 return ""
@@ -190,49 +211,24 @@ class BusinessLogicAgent(BaseTranslationAgent):
             self.logger.debug(f"RAG context generation failed: {e}")
             return ""
     
-    def _create_enhanced_messages(self, prompt_type: str, vb6_content: str, rag_context: str) -> List[Dict[str, str]]:
-        """Create messages with RAG context enhancement"""
-        # Get messages from prompt manager with context parameter
+    def _create_enhanced_messages(self, prompt_type: str, vb6_content: str, rag_context: str, vb6_file=None, project_files: dict = None) -> List[Dict[str, str]]:
+        
+        using_statements = generate_using_statements(vb6_file, project_files or {}, self.project_root)
+        
+        # Get file path - handle both VB6File and VB6ParsedFile
+        file_path = getattr(vb6_file, 'file_path', None) or getattr(vb6_file, 'path', None)
+        namespace = get_namespace_from_path(file_path, self.project_root) if file_path else "Translated"
+        
         messages = self.prompt_manager.create_messages(
             prompt_type, 
             source_code=vb6_content,
-            context=rag_context if rag_context else ""
+            context=rag_context if rag_context else "",
+            using_statements=using_statements,
+            namespace=namespace
         )
         
         return messages if messages else []
     
-    def _clean_llm_response(self, response_content: str) -> str:
-        """Clean up LLM response content"""
-        # Remove markdown code blocks if present
-        cleaned = re.sub(r'```(?:csharp|c#|cs)?\n?', '', response_content)
-        cleaned = re.sub(r'```\n?$', '', cleaned, flags=re.MULTILINE)
-        
-        # Remove any leading/trailing whitespace
-        cleaned = cleaned.strip()
-        
-        # Ensure proper namespace structure if not present
-        if not cleaned.startswith('namespace ') and not cleaned.startswith('using '):
-            # Wrap in namespace if it's just class content
-            if 'class ' in cleaned and not 'namespace ' in cleaned:
-                indented_code = self._indent_code(cleaned, 1)
-                cleaned = f"namespace Translated.Business\n{{\n{indented_code}\n}}"
-        
-        return cleaned
-    
-    def _indent_code(self, code: str, levels: int) -> str:
-        """Indent code by specified levels (4 spaces per level)"""
-        indent = '    ' * levels
-        return '\n'.join(f"{indent}{line}" if line.strip() else line for line in code.split('\n'))
-    
-    def _sanitize_name(self, name: str) -> str:
-        """Sanitize VB6 names for C# compatibility"""
-        # Remove invalid characters and handle keywords
-        sanitized = re.sub(r'[^\w]', '_', name)
-        if sanitized and sanitized[0].isdigit():
-            sanitized = f"_{sanitized}"
-        return sanitized
-    
-
 
 
 def main():
