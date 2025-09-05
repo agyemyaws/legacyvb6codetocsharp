@@ -77,10 +77,7 @@ class ProjectOrchestrator:
         
         # Initialize core components
         self.analyzer = VB6Analyzer()
-        self.translation_orchestrator = TranslationOrchestrator(
-            max_workers=self.settings.MAX_WORKERS,
-            max_retries=self.settings.MAX_RETRIES
-        )
+        self.translation_orchestrator = None  # Will be created when project is analyzed
         
         # Initialize state tracking
         self.current_progress: Optional[TranslationProgress] = None
@@ -127,6 +124,14 @@ class ProjectOrchestrator:
             
             self.current_project = vb6_project
             self.current_progress.total_components = len(vb6_project.files)
+            
+            # Create translation orchestrator with project root
+            self.translation_orchestrator = TranslationOrchestrator(
+                max_workers=self.settings.MAX_WORKERS,
+                max_retries=self.settings.MAX_RETRIES,
+                project_root=Path(vb6_project.name)
+            )
+            
             analysis_time = time.time() - phase_start
             self.current_progress.phase_times['analysis'] = analysis_time
             self.logger.info(f"⏱️  Analysis completed in {analysis_time:.2f} seconds")
@@ -224,6 +229,9 @@ class ProjectOrchestrator:
         
         # Use VB6Files from analyzer
         components_map = vb6_project.files
+        
+        # Set project context on translation orchestrator for smart dependency resolution
+        self.translation_orchestrator.set_project_context(components_map)
         
         # Initialize translation orchestrator's task tracking
         self.translation_orchestrator.tasks = {}
