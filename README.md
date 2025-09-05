@@ -132,12 +132,6 @@ python Evaluation/evaluator.py MyTranslatedProject/
 4. Run tests: `python -m pytest`
 5. Submit a Pull Request
 
-## 🆘 Support
-
-**Common Issues:**
-- **Translation fails**: Check VB6 project file (.vbp) is valid
-- **Missing dependencies**: Ensure all referenced VB6 files exist
-- **AI provider errors**: Verify API keys or Ollama installation
 
 ## 📄 License
 
