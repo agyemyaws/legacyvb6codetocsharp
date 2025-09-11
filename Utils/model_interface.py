@@ -6,6 +6,8 @@ from pathlib import Path
 from ollama import Client
 from anthropic import Anthropic
 import os
+import requests
+import json
 
 
 sys.path.append(str(Path(__file__).parent.parent))
@@ -86,6 +88,64 @@ class OllamaClient:
             )
 
 
+class EmbeddingsClient:
+    """Client for Nomic embeddings via Ollama"""
+    
+    def __init__(self, base_url: str = None):
+        settings = get_settings()
+        self.base_url = base_url or settings.OLLAMA_BASE_URL
+        self.model = settings.EMBEDDING_MODEL
+        self.logger = logging.getLogger(__name__)
+        self._test_connection()
+    
+    def _test_connection(self) -> None:
+        """Test connection to Ollama and check if nomic-embed-text is available"""
+        try:
+            response = requests.get(f"{self.base_url}/api/tags", timeout=5)
+            if response.status_code == 200:
+                models = [model["name"] for model in response.json().get("models", [])]
+                if self.model not in models:
+                    self.logger.warning(f"Model {self.model} not found. Available: {models}")
+                    self.logger.info("Please run: ollama pull nomic-embed-text")
+                else:
+                    self.logger.info(f"Connected to Ollama with embedding model: {self.model}")
+            else:
+                self.logger.warning("Ollama connection test failed")
+        except Exception as e:
+            self.logger.warning(f"Ollama connection error: {e}")
+    
+    def embed_text(self, text: str) -> List[float]:
+        """Get embedding for a single text"""
+        try:
+            response = requests.post(
+                f"{self.base_url}/api/embeddings",
+                json={
+                    "model": self.model,
+                    "prompt": text
+                },
+                timeout=30
+            )
+            response.raise_for_status()
+            embedding = response.json().get("embedding", [])
+            
+            if not embedding:
+                raise ValueError("Empty embedding received")
+            
+            return embedding
+            
+        except Exception as e:
+            self.logger.error(f"Embedding generation failed: {e}")
+            raise
+    
+    def embed_batch(self, texts: List[str]) -> List[List[float]]:
+        """Get embeddings for multiple texts"""
+        embeddings = []
+        for text in texts:
+            embedding = self.embed_text(text)
+            embeddings.append(embedding)
+        return embeddings
+
+
 class ClaudeClient:
     """Client for Anthropic's Claude API"""
     
@@ -95,7 +155,10 @@ class ClaudeClient:
         if not self.api_key:
             raise ValueError("Claude API key not provided. Set CLAUDE_API_KEY environment variable or pass api_key parameter.")
         
-        self.client = Anthropic(api_key=self.api_key)
+        self.client = Anthropic(
+            api_key=self.api_key,
+            timeout=300.0
+        )
         self.provider = "claude"
         self._test_connection()
     
@@ -146,9 +209,10 @@ class ClaudeClient:
             if system_message:
                 request_params["system"] = system_message
             
+            # Make the API call to Claude
+            logger.info(f"Claude request size: {len(str(request_params))} characters, {len(claude_messages)} messages")
             response = self.client.messages.create(**request_params)
-            
-            # Extract content from response
+
             content = ""
             if response.content:
                 if isinstance(response.content, list):

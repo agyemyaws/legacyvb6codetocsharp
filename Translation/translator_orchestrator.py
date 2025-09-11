@@ -25,10 +25,13 @@ from Core.analyzer import VB6File
 from settings import get_settings
 from Translation.Agents.business_logic_agent import BusinessLogicAgent, CSharpClass
 from Translation.Agents.form_agent import FormAgent
+from Translation.Agents.syntax_solver_and_optimization_agent import SyntaxSolverAndOptimizationAgent
 from Utils.dependency_resolver import DependencyResolver
 from Utils.model_interface import OllamaClient, ClaudeClient, ModelResponse
 from Utils.prompt_templates import get_prompt_manager, get_translation_prompt
 from Utils.vb6_parser import VB6Parser, VB6ParsedFile
+from Utils.translation_utils import get_namespace_from_path
+
 
 class TranslationStatus(Enum):
     """Translation status for components"""
@@ -77,11 +80,6 @@ class BaseTranslationAgent:
 
 
 
-
-
-
-
-
 class TranslationOrchestrator:
     """
     Central coordinator for the VB6 to C# translation process.
@@ -93,11 +91,12 @@ class TranslationOrchestrator:
     - Monitor progress and handle errors
     """
     
-    def __init__(self, max_workers: int = None, max_retries: int = None):
+    def __init__(self, max_workers: int = None, max_retries: int = None, project_root: Path = None):
         self.logger = logging.getLogger(__name__)
         settings = get_settings()
         self.max_workers = max_workers if max_workers is not None else settings.MAX_WORKERS
         self.max_retries = max_retries if max_retries is not None else settings.MAX_RETRIES
+        self.project_root = project_root
         
         # Initialize components
         self.vb6_parser = VB6Parser()
@@ -116,21 +115,37 @@ class TranslationOrchestrator:
         
         # Initialize agents
         self.agents: Dict[str, BaseTranslationAgent] = {}
+        self.optimization_agent: Optional[SyntaxSolverAndOptimizationAgent] = None
         self._initialize_agents()
         
         # Translation state
         self.tasks: Dict[str, TranslationTask] = {}
         self.completed_translations: Dict[str, CSharpComponent] = {}
         self.failed_translations: Dict[str, str] = {}
+        self.original_vb6_files: Dict[str, VB6File] = {}  # Store original files for optimization
+        self.project_files: Dict[str, VB6File] = {}  # Project context for dependency resolution
     
     def _initialize_agents(self):
         """Initialize all available translation agents"""
         self.agents = {
-            "form": FormAgent(self.model_client),
-            "business_logic": BusinessLogicAgent(self.model_client)
+            "form": FormAgent(self.model_client, self.project_root),
+            "business_logic": BusinessLogicAgent(self.model_client, self.project_root)
         }
         
+        # Initialize optimization agent
+        try:
+            self.optimization_agent = SyntaxSolverAndOptimizationAgent(self.model_client)
+            self.logger.info("Initialized syntax solver and optimization agent")
+        except Exception as e:
+            self.logger.warning(f"Failed to initialize optimization agent: {e}")
+            self.optimization_agent = None
+        
         self.logger.info(f"Initialized {len(self.agents)} translation agents")
+    
+    def set_project_context(self, project_files: dict):
+        """Store project context for passing to agents during translation"""
+        self.project_files = project_files
+    
     
     def _translate_component(self, component_name: str, vb6_file: VB6File) -> bool:
         """
@@ -152,6 +167,9 @@ class TranslationOrchestrator:
         task.start_time = time.time()
         
         try:
+            # Store original VB6 file for optimization
+            self.original_vb6_files[component_name] = vb6_file
+            
             # Select agent based on file type - simple and direct
             if vb6_file.file_type in ['form', 'control']:
                 agent = self.agents.get('form')
@@ -164,8 +182,38 @@ class TranslationOrchestrator:
             task.assigned_agent = agent.name
             self.logger.info(f"Translating {component_name} with {agent.name}")
             
-            # Perform translation
-            result = agent.translate(vb6_file)
+            # Perform initial translation
+            result = agent.translate(vb6_file, self.project_files)
+            
+            # Apply syntax solving and optimization if agent is available
+            if self.optimization_agent and result:
+                self.logger.info(f"Applying syntax solving and optimization to {component_name}")
+                try:
+                    # Read original VB6 code for reference
+                    original_vb6_code = ""
+                    if vb6_file.file_path and vb6_file.file_path.exists():
+                        with open(vb6_file.file_path, 'r', encoding='latin-1') as f:
+                            original_vb6_code = f.read()
+                    
+                    # Apply optimization
+                    optimized_result = self.optimization_agent.process_translated_code(
+                        result, 
+                        original_vb6_code,
+                        vb6_file
+                    )
+                    
+                    if optimized_result:
+                        result = optimized_result
+                        self.logger.info(f"✅ Applied optimization to {component_name}")
+                    else:
+                        self.logger.warning(f"Optimization returned None for {component_name}, using original translation")
+                        
+                except Exception as e:
+                    self.logger.warning(f"Optimization failed for {component_name}: {e}")
+                    # Continue with original translation if optimization fails
+            else:
+                if not self.optimization_agent:
+                    self.logger.debug(f"No optimization agent available for {component_name}")
             
             # Store results
             task.result = result
@@ -175,7 +223,8 @@ class TranslationOrchestrator:
             self.completed_translations[component_name] = result
             
             duration = task.end_time - task.start_time
-            self.logger.info(f"✅ Successfully translated {component_name} in {duration:.2f}s using {agent.name}")
+            optimization_status = "with optimization" if self.optimization_agent else "without optimization"
+            self.logger.info(f"✅ Successfully translated {component_name} in {duration:.2f}s using {agent.name} {optimization_status}")
             
             # Log component-specific timing details
             file_type = vb6_file.file_type
@@ -322,11 +371,13 @@ class TranslationOrchestrator:
         
         for name, component in self.completed_translations.items():
             try:
-                # Determine file category and save location
-                if component.namespace == "Translated.Forms":
+                # Determine file category and save location based on namespace
+                if "UI" in component.namespace or "Forms" in component.namespace:
                     category = "forms"
-                elif component.namespace == "Translated.Business":
+                elif "Models" in component.namespace or "Business" in component.namespace:
                     category = "business_logic"
+                elif "Utilities" in component.namespace or "Utils" in component.namespace:
+                    category = "business_logic"  # Group utilities with business logic
                 else:
                     category = "other"
                 
@@ -398,6 +449,8 @@ class TranslationOrchestrator:
             f.write(f"Translation Agents Used:\n")
             for agent in summary["agents_used"]:
                 f.write(f"  - {agent}\n")
+            if self.optimization_agent:
+                f.write(f"  - {self.optimization_agent.name} (syntax solving and optimization)\n")
             f.write("\n")
             
             # Successful components
@@ -421,70 +474,30 @@ class TranslationOrchestrator:
                 f.write(f"  - Namespace: {component.namespace}\n")
                 f.write(f"  - File type: {component.file_type}\n")
                 
+                # Optimization information
+                if component.metadata.get('optimization_applied'):
+                    f.write(f"  - Optimization applied: Yes\n")
+                    fixes_count = len(component.metadata.get('fixes_applied', []))
+                    optimizations_count = len(component.metadata.get('optimizations_applied', []))
+                    f.write(f"  - Syntax fixes applied: {fixes_count}\n")
+                    f.write(f"  - Optimizations applied: {optimizations_count}\n")
+                    
+                    if component.metadata.get('optimization_warnings'):
+                        warnings_count = len(component.metadata.get('optimization_warnings', []))
+                        f.write(f"  - Optimization warnings: {warnings_count}\n")
+                else:
+                    f.write(f"  - Optimization applied: No\n")
+                    if component.metadata.get('optimization_failed'):
+                        f.write(f"  - Optimization failed: {component.metadata.get('optimization_failed')}\n")
+                
                 # Additional metadata
                 for key, value in component.metadata.items():
-                    if key not in ['original_file', 'using_statements', 'designer_code']:
+                    if key not in ['original_file', 'using_statements', 'designer_code', 
+                                 'optimization_applied', 'fixes_applied', 'optimizations_applied', 
+                                 'optimization_warnings', 'optimization_failed', 'optimization_model', 'optimization_provider']:
                         f.write(f"  - {key}: {value}\n")
 
 
-def run_standalone_translation(project_path: str, output_dir: str = None, 
-                              max_workers: int = None, max_retries: int = None) -> Dict[str, Any]:
-    """
-    Standalone function for running translation directly (for testing/debugging)
-    
-    Args:
-        project_path: Path to VB6 project file or directory
-        output_dir: Output directory for translated files
-        max_workers: Maximum number of parallel workers (None = use settings)
-        max_retries: Maximum number of retries for failed translations (None = use settings)
-        
-    Returns:
-        Dictionary with translation results and summary
-    """
-    # Initialize orchestrator
-    orchestrator = TranslationOrchestrator(
-        max_workers=max_workers,
-        max_retries=max_retries
-    )
-    
-    try:
-        # Analyze project
-        project_path_obj = Path(project_path)
-        components = orchestrator.analyze_vb6_project(project_path_obj)
-        
-        # Translate project
-        results = orchestrator.translate_project(components)
-        
-        # Get summary
-        summary = orchestrator.get_translation_summary()
-        
-        # Save results if output directory specified
-        saved_files = {}
-        if output_dir:
-            output_dir_obj = Path(output_dir)
-            output_dir_obj.mkdir(parents=True, exist_ok=True)
-            
-            # Save the entire project with proper structure
-            project_name = project_path_obj.stem if project_path_obj.is_file() else project_path_obj.name
-            saved_files = orchestrator.save_translated_project(output_dir_obj, project_name)
-        
-        return {
-            'success': True,
-            'components': len(components),
-            'results': results,
-            'summary': summary,
-            'saved_files': saved_files
-        }
-    
-    except Exception as e:
-        return {
-            'success': False,
-            'error': str(e),
-            'components': 0,
-            'results': {},
-            'summary': {},
-            'saved_files': {}
-        }
 
 
 def main():
@@ -516,43 +529,6 @@ def main():
         task_name="translation"
     )
     
-    # Run standalone translation
-    result = run_standalone_translation(
-        args.project_path,
-        args.output_dir,
-        args.max_workers,  # None if not provided
-        args.max_retries   # None if not provided
-    )
-    
-    if result['success']:
-        print(f"Found {result['components']} components to translate")
-        
-        # Print summary
-        summary = result['summary']
-        if summary and 'progress' in summary:
-            print(f"\nTranslation Summary:")
-            print(f"  Total components: {summary['progress']['total']}")
-            print(f"  Successful: {summary['progress']['completed']}")
-            print(f"  Failed: {summary['progress']['failed']}")
-            print(f"  Success rate: {summary['progress']['success_rate']:.1f}%")
-            print(f"  Average time per component: {summary['average_translation_time']:.2f}s")
-            
-            if summary.get('failed_components'):
-                print(f"  Failed components: {', '.join(summary['failed_components'])}")
-        
-        # Print saved files info
-        saved_files = result['saved_files']
-        if saved_files:
-            print(f"\nSaved translated project:")
-            for category, files in saved_files.items():
-                if files:
-                    print(f"  {category.replace('_', ' ').title()}: {len(files)} files")
-        
-        return 0
-    else:
-        print(f"Translation failed: {result['error']}")
-        return 1
-
 
 if __name__ == "__main__":
     exit(main())

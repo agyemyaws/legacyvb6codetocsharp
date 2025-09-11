@@ -96,6 +96,13 @@ VB6 SPECIAL CASES:
 - App.Path -> Application.StartupPath
 - Form references: Form1.Show -> form1.Show() (instance-based)
 
+DATABASE AND DATA TYPE HANDLING:
+- Database methods return DataTable, not custom objects or List<T>
+- Use DataRow access: row["FieldName"] or Convert.ToType(row["FieldName"])
+- Handle null database values with proper null checks
+- Use correct method signatures from actual helper classes
+- Reference static methods with class name: ClassName.MethodName()
+
 MODERN C# PATTERNS:
 - Use proper disposal: using statements, IDisposable implementation
 - Null-conditional operators: obj?.Method()
@@ -109,25 +116,35 @@ WINFORMS BEST PRACTICES:
 - Proper parent-child control relationships
 - Thread-safe control access using Control.Invoke()
 - Correct anchoring and docking for responsive layouts
-- Resource management in Dispose() method""",
+- Resource management in Dispose() method
+
+DESIGNER FILE SEPARATION:
+- ALL control declarations go in Designer file (.Designer.cs)
+- ALL control initialization (properties, positioning, sizing) goes in Designer file
+- Form class (.cs) should ONLY contain business logic and event handlers
+- Form_Load should only contain runtime initialization, not control setup
+- Control properties set in Designer file should match VB6 form properties exactly
+- Do NOT put control creation or property setting in Form_Load method""",
     
-    user_template="""Convert the following VB6 form to C# WinForms .NET:
+    user_template="""Convert the following VB6 form to C# WinForms .NET. Preserve UI/behavior exactly. Do not invent new controls or change layout. Maintain event wiring and business logic fidelity:
 
 {source_code}
 
-Output the complete C# translation using this EXACT format:
+Generate complete, production-ready C# code in this exact format:
+
 
 <!-- FORM_CLASS_START -->
 using System;
 using System.ComponentModel;
 using System.Drawing;
 using System.Windows.Forms;
+{using_statements}
 
-namespace WindowsFormsApp
+namespace {namespace}
 {{
-    public partial class Form1 : Form
+    public partial class {form_name} : Form
     {{
-        public Form1()
+        public {form_name}()
         {{
             InitializeComponent();
         }}
@@ -135,7 +152,14 @@ namespace WindowsFormsApp
         // Convert all VB6 event handlers here
         // Use proper C# event handler signature: (object sender, EventArgs e)
         // Handle VB6-specific logic (control arrays, Variant types, etc.)
-        // Include Form_Load -> Form1_Load, Form_Unload -> Form1_FormClosing
+        // Include Form_Load -> {form_name}_Load, Form_Unload -> {form_name}_FormClosing
+        
+        // Form_Load should ONLY contain:
+        // - Business logic initialization
+        // - Database connections
+        // - Runtime data loading
+        // - Dynamic content setup
+        // Do NOT put control property setting here - that belongs in Designer file
         
         protected override void Dispose(bool disposing)
         {{
@@ -153,10 +177,11 @@ namespace WindowsFormsApp
 using System.ComponentModel;
 using System.Drawing;
 using System.Windows.Forms;
+{using_statements}
 
-namespace WindowsFormsApp
+namespace {namespace}
 {{
-    partial class Form1
+    partial class {form_name}
     {{
         private IContainer components = null;
         
@@ -169,16 +194,20 @@ namespace WindowsFormsApp
             this.SuspendLayout();
             
             // Initialize all controls with proper property mappings
-            // Set Location, Size, Text, and other properties
+            // Set Location, Size, Text, and other properties from VB6 form
             // Wire up event handlers
             // Add controls to form: this.Controls.Add(controlName);
+            
+            // CRITICAL: All control properties from VB6 form must be set here
+            // This includes: Left, Top, Width, Height, Text, Visible, etc.
+            // Do NOT put control property setting in Form_Load method
             
             // Form properties
             this.AutoScaleDimensions = new SizeF(6F, 13F);
             this.AutoScaleMode = AutoScaleMode.Font;
             this.ClientSize = new Size(800, 600); // Set from VB6 form size
-            this.Name = "Form1";
-            this.Text = "Form1"; // Set from VB6 Caption
+            this.Name = "{form_name}";
+            this.Text = "{form_name}"; // Set from VB6 Caption
             
             this.ResumeLayout(false);
             this.PerformLayout();
@@ -187,15 +216,34 @@ namespace WindowsFormsApp
 }}
 <!-- DESIGNER_CLASS_END -->
 
-REQUIREMENTS:
-- Handle VB6 Variant types as object with null checks
-- Convert control arrays to appropriate C# patterns  
-- Preserve all VB6 functionality with modern C# equivalents
-- Use proper WinForms designer patterns
-- Include comprehensive error handling
-- Follow C# naming conventions (PascalCase methods, camelCase fields)
+DEPENDENCY HANDLING:
+- The using_statements parameter contains ONLY project-specific using statements for internal dependencies
+- Standard .NET using statements (System, System.Drawing, etc.) are handled by the prompt template
+- Reference classes by their EXACT C# class names (e.g., CPerson, not Person)
+- Use proper namespaces as provided in the using statements
+- Do NOT create placeholder classes if dependencies are referenced via using statements
+- Only add using statements for classes that actually exist in the project
 
-MANDATORY: Your response MUST include BOTH the <!-- FORM_CLASS_START --> and <!-- DESIGNER_CLASS_START --> sections with the exact delimiters shown above. The parsing system depends on these delimiters to separate the form class from the designer class. DO NOT use code blocks (```) or any other formatting - just the HTML comment delimiters.""",
+CRITICAL REQUIREMENTS:
+1. Convert ALL VB6 controls using exact mappings above; do NOT substitute different control types.
+2. Preserve positions/sizes; compute ClientSize from VB6 ScaleWidth/ScaleHeight if available.
+3. Preserve event semantics (Load/Unload/Click/etc.) and business logic; no deletions.
+4. Handle control arrays via separate controls with shared handlers; preserve index via Tag.
+5. Map ALL properties; no placeholders like TODO.
+6. Do not output explanatory text; only valid compilable C#.
+7. Names: PascalCase classes, camelCase private fields; Text1 -> textBox1, Command1 -> button1.
+8. Ensure all controls are added to Controls and handlers are wired.
+9. Avoid creating new UI or changing behavior; match original exactly.
+10. Use EXACT class names from dependencies (e.g., CPerson, not Person).
+11. Reference helper classes by their actual names (e.g., DatabaseModule, not DatabaseHelper).
+12. Only use using statements for classes that actually exist in the project.
+13. Handle database return types correctly (DataTable, not custom objects).
+14. Use proper method signatures and parameter types from actual classes.
+15. Reference static methods correctly (e.g., DatabaseModule.MethodName(), not DatabaseHelper.MethodName()).
+16. ALL control property setting (Left, Top, Width, Height, Text, Visible) goes in Designer file.
+17. Form_Load should ONLY contain business logic, NOT control property setting.
+18. Designer file must contain complete control initialization matching VB6 form exactly.""",
+
     
     description="Optimal CodeLlama 13B prompt for VB6 to C# WinForms translation"
 ),
@@ -343,9 +391,11 @@ CRITICAL REQUIREMENTS:
 - Generate production-ready, maintainable code with proper resource disposal
 - Use parameterized queries to prevent SQL injection attacks""",
 
-    user_template="""Convert this VB6 class module to modern C#:
+    user_template="""Convert this VB6 class module to modern C#. Preserve semantics exactly; do not drop branches or change behavior:
 
 {source_code}
+
+{context}
 
 Requirements:
 - Follow ALL conversion rules exactly
@@ -370,9 +420,9 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.OleDb;
-// Add other using statements as needed
+{using_statements}
 
-namespace YourNamespace
+namespace {namespace}
 {{
     /// <summary>
     /// Converted from VB6 class module: [ClassName]
@@ -428,13 +478,12 @@ Only add finalizer if actually using unmanaged resources:
 }}
 ```
 
-IMPORTANT: 
-- Do NOT use any VB6 COM objects (ADODB.Connection, ADODB.Recordset, etc.)
-- DO use modern ADO.NET classes (OleDbConnection, OleDbCommand, etc.)
-- Apply modern C# patterns consistently throughout the code
-- Include proper resource disposal with using statements and IDisposable
-- Use parameterized queries for all database operations
-- Implement comprehensive error handling with specific exception types""",
+IMPORTANT:
+- Do NOT use VB6 COM objects (ADODB.*). Use ADO.NET.
+- Keep naming consistent and descriptive; avoid Hungarian prefixes from VB6 in public APIs.
+- No commentary in output; produce only compilable code.
+- Use parameterized queries and proper disposal.
+- Maintain function signatures and side-effects equivalent to VB6.""",
 
     description="Enterprise-grade VB6 class to C# conversion with modern ADO.NET patterns and proper resource management"
 ),
@@ -568,6 +617,8 @@ CRITICAL REQUIREMENTS:
 
 {source_code}
 
+{context}
+
 CRITICAL REQUIREMENTS:
 - Follow ALL conversion rules exactly
 - Use modern ADO.NET (OleDbConnection, OleDbCommand) instead of COM objects
@@ -590,9 +641,9 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Windows.Forms;
-// Add other using statements as needed
+{using_statements}
 
-namespace YourNamespace
+namespace {namespace}
 {{
     /// <summary>
     /// Converted from VB6 standard module: [ModuleName]
@@ -632,12 +683,12 @@ namespace YourNamespace
     }}
 }}
 ```
-IMPORTANT: 
-- Do NOT use any VB6 COM objects (ADODB.Connection, ADODB.Recordset, etc.)
-- DO use modern ADO.NET classes (OleDbConnection, OleDbCommand, etc.)
-- Apply modern C# patterns consistently throughout the code
-- Include proper resource disposal with using statements
-- Use parameterized queries for database operations""",
+IMPORTANT:
+- Do NOT use VB6 COM objects (ADODB.*); use ADO.NET equivalents.
+- Preserve original module procedure names and accessibility.
+- No comments or explanations; output only valid C#.
+- Use parameterized queries and disposal.
+- Maintain error-handling behavior (labels -> try/catch with same outcomes).""",
                 
                 description="Enterprise-grade VB6 module to C# static class conversion with modern patterns"
             ),
@@ -670,6 +721,8 @@ Always provide clean, readable, and maintainable C# code.""",
                 user_template="""Translate the following Fortran code to C#:
 
 {source_code}
+
+{context}
 
 Provide only the translated C# code without explanations.""",
                 
@@ -717,6 +770,8 @@ Always provide clean, secure, and maintainable Entity Framework code.""",
 
 {source_code}
 
+{context}
+
 Provide the translated C# code with:
 1. Entity classes
 2. DbContext class
@@ -745,9 +800,136 @@ Provide clear, actionable insights.""",
 
 {source_code}
 
+{context}
+
 Provide a structured analysis covering complexity, dependencies, challenges, and recommendations.""",
                 
                 description="Code analysis prompt for translation planning"
+            ),
+            
+            "syntax_optimization": TranslationPrompt(
+                system_prompt="""You are an expert C# code optimization and syntax fixing specialist. Your task is to take already translated C# code and improve it by fixing syntax issues, applying modern C# patterns, and optimizing for performance and maintainability.
+
+CRITICAL SYNTAX FIXING PRIORITIES:
+
+1. COMPILATION ERRORS (HIGHEST PRIORITY):
+   - Missing semicolons, braces, or parentheses
+   - Incorrect variable declarations and type mismatches
+   - Invalid method signatures and return types
+   - Missing using statements for required namespaces
+   - Incorrect access modifiers and visibility
+   - Malformed class, property, and method declarations
+
+2. NAMING CONVENTION FIXES:
+   - Apply C# naming conventions: PascalCase for classes, methods, properties; camelCase for fields, parameters
+   - Convert VB6-style names to proper C# names (Text1 -> textBox1, Command1 -> button1)
+   - Remove Hungarian notation prefixes (strName -> name, intCount -> count)
+   - Ensure meaningful, descriptive names that follow C# conventions
+
+3. MODERN C# PATTERN ENFORCEMENT:
+   - Replace string concatenation with string interpolation: "Hello " + name -> $"Hello {name}"
+   - Use auto-implemented properties: public string Name { get; set; }
+   - Apply null-conditional operators: obj?.Property instead of if(obj != null) obj.Property
+   - Use var for obvious types, explicit types for clarity
+   - Replace legacy patterns with modern equivalents (ArrayList -> List<T>)
+   - Use using statements for IDisposable objects
+   - Apply expression-bodied members for simple operations
+
+4. PERFORMANCE OPTIMIZATIONS:
+   - Use StringBuilder for multiple string concatenations
+   - Replace inefficient loops with LINQ where appropriate
+   - Use efficient collection types (List<T> vs ArrayList, Dictionary<TKey,TValue> vs Hashtable)
+   - Minimize boxing/unboxing operations
+   - Use readonly for immutable fields
+   - Apply proper async/await patterns where beneficial
+
+5. ERROR HANDLING IMPROVEMENTS:
+   - Convert VB6 error handling to proper try-catch blocks
+   - Use specific exception types instead of generic Exception
+   - Add proper null checks and validation
+   - Implement defensive programming practices
+
+6. CODE STRUCTURE AND READABILITY:
+   - Ensure proper indentation and formatting
+   - Add XML documentation comments for public members
+   - Group related functionality logically
+   - Remove redundant code and dead code paths
+   - Ensure consistent coding style throughout
+
+7. WINFORMS SPECIFIC OPTIMIZATIONS (if applicable):
+   - Proper event handler signatures and naming
+   - Correct control initialization patterns
+   - Use SuspendLayout/ResumeLayout for performance
+   - Proper resource disposal in Dispose method
+   - Thread-safe control access patterns
+
+8. DATABASE/DATA ACCESS FIXES (if applicable):
+   - Use parameterized queries to prevent SQL injection
+   - Proper connection disposal with using statements
+   - Convert COM objects (ADODB.*) to ADO.NET equivalents
+   - Use appropriate data types and null handling
+
+CRITICAL REQUIREMENTS:
+- PRESERVE ALL ORIGINAL FUNCTIONALITY - do not change business logic or behavior
+- Fix syntax errors that would prevent compilation
+- Apply modern C# patterns consistently
+- Maintain the original code structure and flow
+- Ensure all optimizations are safe and don't introduce bugs
+- Use the original VB6 code as reference for intended behavior
+- Keep variable and method names descriptive and meaningful""",
+                
+                user_template="""Fix syntax issues and optimize the following translated C# code. Use the original VB6 code as reference to ensure functionality is preserved.
+
+ORIGINAL VB6 CODE (for reference):
+{original_vb6_code}
+
+TRANSLATED C# CODE (to be optimized):
+{translated_code}
+
+FILE TYPE: {file_type}
+NAMESPACE: {namespace}
+CONTEXT: {context_info}
+
+REQUIREMENTS:
+1. Fix all compilation errors and syntax issues
+2. Apply modern C# naming conventions and patterns  
+3. Optimize for performance and maintainability
+4. Preserve all original functionality and behavior
+5. Add proper error handling and null checks
+6. Use appropriate data types and collections
+7. Apply C# best practices consistently
+
+Provide your response in this exact format:
+
+<!-- OPTIMIZED_CODE_START -->
+[Put the complete optimized C# code here - must be fully compilable and functional]
+<!-- OPTIMIZED_CODE_END -->
+
+<!-- FIXES_APPLIED_START -->
+- [List each syntax fix applied, one per line]
+- [Example: Fixed missing semicolon on line 15]
+- [Example: Corrected variable declaration type mismatch]
+<!-- FIXES_APPLIED_END -->
+
+<!-- OPTIMIZATIONS_APPLIED_START -->
+- [List each optimization applied, one per line]
+- [Example: Replaced string concatenation with string interpolation]
+- [Example: Applied auto-implemented properties]
+<!-- OPTIMIZATIONS_APPLIED_END -->
+
+<!-- WARNINGS_START -->
+- [List any warnings or potential issues, one per line]
+- [Example: Consider async pattern for database operations]
+- [Leave empty if no warnings]
+<!-- WARNINGS_END -->
+
+CRITICAL: The optimized code must:
+- Compile without errors
+- Maintain exact same functionality as original VB6 code
+- Follow modern C# conventions and best practices
+- Be production-ready and maintainable""",
+                
+                description="Comprehensive C# code optimization and syntax fixing with modern pattern enforcement"
             )
         }
     
@@ -766,6 +948,9 @@ Provide a structured analysis covering complexity, dependencies, challenges, and
             return None
         
         try:
+            
+            if prompt_type == "vb6_to_winforms" and "form_name" not in kwargs:
+                kwargs["form_name"] = "MainForm"
             formatted_user = prompt.user_template.format(**kwargs)
             return {
                 "system": prompt.system_prompt,
@@ -805,15 +990,15 @@ def get_translation_prompt(source_language: str, target_language: str = "csharp"
     return get_prompt_manager().get_prompt(prompt_type)
 
 
-def create_translation_messages(source_code: str, source_language: str, target_language: str = "csharp") -> Optional[List[Dict[str, str]]]:
+def create_translation_messages(source_code: str, source_language: str, target_language: str = "csharp", context: str = "") -> Optional[List[Dict[str, str]]]:
     """Create messages for code translation"""
     prompt_type = f"{source_language.lower()}_to_{target_language.lower()}"
-    return get_prompt_manager().create_messages(prompt_type, source_code=source_code)
+    return get_prompt_manager().create_messages(prompt_type, source_code=source_code, context=context)
 
 
-def create_analysis_messages(source_code: str) -> Optional[List[Dict[str, str]]]:
+def create_analysis_messages(source_code: str, context: str = "") -> Optional[List[Dict[str, str]]]:
     """Create messages for code analysis"""
-    return get_prompt_manager().create_messages("code_analysis", source_code=source_code)
+    return get_prompt_manager().create_messages("code_analysis", source_code=source_code, context=context)
 
 
 # Example usage

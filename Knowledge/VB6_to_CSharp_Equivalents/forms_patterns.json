@@ -4,8 +4,17 @@
     "csharp_equivalent": "public Form1()\n{\n    InitializeComponent();\n    // Initialization code here\n    textBox1.Text = \"Hello\";\n    button1.Text = \"Click Me\";\n}",
     "description": "Form Load event initialization pattern",
     "tags": ["form", "initialization", "event", "constructor"],
-    "complexity": "low",
+    "complexity": "simple",
     "confidence": 1.0
+  },
+
+  "form_load_with_database": {
+    "pattern": "Private Sub Form_Load()\n    Dim conn As ADODB.Connection\n    Dim rs As ADODB.Recordset\n    \n    Set conn = New ADODB.Connection\n    conn.Open \"Provider=Microsoft.Jet.OLEDB.4.0;Data Source=C:\\data.mdb\"\n    \n    Set rs = New ADODB.Recordset\n    rs.Open \"SELECT * FROM Users\", conn\n    \n    Do While Not rs.EOF\n        Combo1.AddItem rs.Fields(\"UserName\").Value\n        rs.MoveNext\n    Loop\n    \n    rs.Close\n    conn.Close\n    Set rs = Nothing\n    Set conn = Nothing\n    \n    Me.Caption = \"User Management - \" & Format(Now, \"mm/dd/yyyy\")\nEnd Sub",
+    "csharp_equivalent": "public Form1()\n{\n    InitializeComponent();\n    LoadInitialData();\n}\n\nprivate async void LoadInitialData()\n{\n    try\n    {\n        using (var connection = new OleDbConnection(@\"Provider=Microsoft.ACE.OLEDB.12.0;Data Source=C:\\data.mdb\"))\n        {\n            await connection.OpenAsync();\n            \n            using (var command = new OleDbCommand(\"SELECT UserName FROM Users ORDER BY UserName\", connection))\n            using (var reader = await command.ExecuteReaderAsync())\n            {\n                comboBox1.Items.Clear();\n                while (await reader.ReadAsync())\n                {\n                    comboBox1.Items.Add(reader[\"UserName\"].ToString());\n                }\n            }\n        }\n        \n        this.Text = $\"User Management - {DateTime.Now:MM/dd/yyyy}\";\n    }\n    catch (Exception ex)\n    {\n        MessageBox.Show($\"Error loading data: {ex.Message}\", \"Error\", MessageBoxButtons.OK, MessageBoxIcon.Error);\n    }\n}",
+    "description": "Complex form initialization with database loading and async operations",
+    "tags": ["form", "initialization", "database", "async", "error-handling", "combo-box"],
+    "complexity": "complex",
+    "confidence": 0.9
   },
 
   "button_click_event": {
