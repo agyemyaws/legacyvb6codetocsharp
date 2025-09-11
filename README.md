@@ -204,6 +204,7 @@ python Core/project_orchestrator.py Data/Input/YourProject --output-dir TestOutp
 - **RAG patterns not loading**: Check ChromaDB installation and embeddings model
 - **Optimization agent fails**: Verify model client configuration
 
+
 ## 📄 License
 
 MIT License - see [LICENSE](LICENSE) file for details.
