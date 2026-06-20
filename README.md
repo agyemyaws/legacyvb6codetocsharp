@@ -3,7 +3,7 @@
 [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-An intelligent pipeline for translating legacy VB6 applications to modern C# using AI-powered multi-agent translation with RAG-enhanced context retrieval.
+An intelligent pipeline for translating legacy VB6 applications to modern C# using LLM-powered multi-agent translation with RAG-enhanced context retrieval.
 
 ## 🚀 Key Features
 
