@@ -331,13 +331,13 @@ Total error reduction: 87.3%
 
 ### Overall System Architecture
 
-![System Architecture](assets/system-architecture.png)
+![System Architecture](assets/system-architecture.jpeg)
 
 ---
 
 ### Multi-Agent Architecture
 
-![Multi-Agent Architecture](assets/multi-agent-architecture.png)
+![Multi-Agent Architecture](assets/multi-agent-architecture.jpeg)
 
 ---
 
